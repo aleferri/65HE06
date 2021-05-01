@@ -80,6 +80,10 @@ Model of next prototype (Prefetch considered extern for the moment)
 3. ALU: fetch expanded opcode, select inputs and calculate output, destination is itself or memory. Keeps the list of busy registers. WB pseudo operation is when Memory Write to Register file, while ALU is not writing back to register file (e.g. writing to the address)
 4. MEM: fetch address and data from ALU, push back to register file
 
+
+
+#### Proposed Schedule for the new pipeline
+
 | OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 |--|--|--|--|--|--|--|--|--|--|--|--|
 | LD A, (S, src), Y | IF | ID | ALU | MEM | ALU | MEM | ALU

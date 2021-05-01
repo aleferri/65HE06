@@ -30,10 +30,10 @@ Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
 | Predicated Mov Immediate| 11110aaas | cccnrrr |
 | Predicated Add Immediate| 11111aaas | cccnrrr |
 
-1. R(3) is source register, flow is A, R -> A
-2. W(1) is width 0 is word, 1 is byte
-3. C(3) is the condition bit to test in the Status Flags register
-4. N(1) is the predicated value of the bit
+1. R(3) is source register, flow is: OP(A, R) -> A
+2. W(1) is width, if 0 the size is word, if 1 the size is byte
+3. C(3) is the index of the first 8 bit of Status Flags
+4. N(1) is the predicated value of the selected bit
 5. J(2) is the index register for indexed and reindexed modes
 6. Y(2) is the post-index register for the reindexed mode
 
@@ -51,3 +51,36 @@ Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
 6. Zero Page Indexed by X is remapped as X + k16
 7. Zero Page indirect indexed by Y is remapped as (Z + k16) + Y
 8. Zero Page indirect is remapped as (Z + k16) + Z
+
+## Implementation
+### 5 stage variable length, multi cycle pipeline (Failure)
+#### Stages
+1. IF: instruction fetch, fetch 16 bit from the memory
+2. ID: instruction decode, fetch optional arguments, issue operations and registers to the back-end, keep track of busy registers (registers that are being calculated). Prevent failed predicted operations to enter the backend. Re Issue registers to the back end for reindexed mode. Create the uOP opcode that flow through the pipeline. Stall instructions if PC need to be updated or flags are required, but are currently busy.
+3. AGU/ALU0: early exit for simple instructions, address calculation for memory operands
+4. Load/Store Unit: load/store values from/to memory
+5. ALU1: ALU for operations with memory values
+#### Problems
+1. ID does too much. It need to keep an enormous amount of state, while the last three stages of the pipeline has almost no state. IF does almost nothing.
+2. IF fetch 16 bit/clock, but 32 bit instructions are common. It is useless to pipeline to get at most 0.5 op/cycle. A simpler implementation with a big late stage that do everything with microcode is already capable of 0.5 ipc (See my other repository 6516). There is no point to waste ton of resources if there is nothing to gain.
+3. With registers checked at ID stage there is a guaranteed full pipeline flush as 3/8 registers are required to be not busy. Considering C mem* functions, all implementations will be something like `LD A, (S, src), Y; ST A, (S, dest), Y; ADD Y, #1`. In the specified sequence everything stall for the entire pipeline  (1°: 1 IF + 3 ID + 2 AGU + 2 MEM + 1 ALU, 2°: 1 ID, 2 AGU + 1 MEM)
+
+| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14
+|--|--|--|--|--|--|--|--|--|--|--|--|--|--|--|
+| LD A, (S, src), Y | IF | ID | ID | ID ALU0 | ALU0 | ALU0 | MEM | MEM | ALU1 |
+| ST A, (S, dest), Y | - | - | IF | IF | ID | ID | ID | ID | ID | ID |ID ALU0 | ALU0 | ALU0 | MEM
+
+A single memory transfer in 14 clock cycles is something that even the original 6502 could do, and without the two channels required here. Re-Indexed mode cannot be so slow that is useless. Since there is a limited set of registers and memory accesses are frequents Load/Stores cannot stall the pipeline.  
+
+#### Conclusion
+The pipeline need to be redesigned from scratch. Either a register renaming scheme is required or the register file need to be put near the execution units and busy/not busy deferred or avoided. IF is required to implement his own ALU and require a single port to handle predicated instructions that store on PC. A prefetch is needed to push 2 16 bit words/clock on IF.
+Model of next prototype (Prefetch considered extern for the moment)
+1. IF: fetch 2 16 bit words, IF then send a complete instruction to ID
+2. ID: transform a 16 bit opcode in a 32 bit one, expanding all fields and present it to the execution unit when needed. ID issue back the expanded opcode to IF as well to let it handle predication
+3. ALU: fetch expanded opcode, select inputs and calculate output, destination is itself or memory. Keeps the list of busy registers. WB pseudo operation is when Memory Write to Register file, while ALU is not writing back to register file (e.g. writing to the address)
+4. MEM: fetch address and data from ALU, push back to register file
+
+| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+|--|--|--|--|--|--|--|--|--|--|--|--|
+| LD A, (S, src), Y | IF | ID | ALU | MEM | ALU | MEM | ALU
+| ST A, (S, dest), Y | - | IF | ID | ALU | MEM | WB | - | ALU | MEM

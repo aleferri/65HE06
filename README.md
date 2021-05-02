@@ -43,14 +43,17 @@ Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
 3. Z is conventionally 0
 
 ### Remapping original addressing modes
-1. Immediate 8 bit is extended to Immediate 16 bit
-2. Absolute 16 bit is remapped as Z + k16
-3. Absolute 16 bit indexed by X is remapped as X + k16
-4. Indirect Absolute is remapped as (X + k16), Z
-5. Zero Page is remapped as Z + k16
-6. Zero Page Indexed by X is remapped as X + k16
-7. Zero Page indirect indexed by Y is remapped as (Z + k16) + Y
-8. Zero Page indirect is remapped as (Z + k16) + Z
+1. #imm is extended to 16 bit
+2. Abs is remapped as Z + k16
+3. Abs, X is remapped as X + k16
+4. Abs, Y is remapped as Y + k16
+5. (Abs) is remapped as (Z + k16), Z
+6. ZP is remapped as Z + k16
+7. ZP, X is remapped as X + k16
+8. ZP, Y is remapped as Y + k16
+9. (ZP, X) is remapped as (X + k16), Z
+10. (ZP), Y is remapped as (Z + k16), Y
+11. (ZP) is remapped as (Z + k16), Z
 
 ## Implementation
 ### 5 stage variable length, multi cycle pipeline (Failure)

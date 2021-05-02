@@ -80,11 +80,24 @@ Model of next prototype (Prefetch considered extern for the moment)
 3. ALU: fetch expanded opcode, select inputs and calculate output, destination is itself or memory. Keeps the list of busy registers. WB pseudo operation is when Memory Write to Register file, while ALU is not writing back to register file (e.g. writing to the address)
 4. MEM: fetch address and data from ALU, push back to register file
 
-
-
 #### Proposed Schedule for the new pipeline
-
-| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
 |--|--|--|--|--|--|--|--|--|--|--|--|
 | LD A, (S, src), Y | IF | ID | ALU | MEM | ALU | MEM | ALU
 | ST A, (S, dest), Y | - | IF | ID | ALU | MEM | WB | - | ALU | MEM
+
+### 4/8 Stage Multi cycle interlieved Micro-Executed Pipeline
+Given the aforementioned requirements and conclusions, a new pipeline is being developed.
+The interlieved execution of Memory Operations simplify the state tracking and improve performance delaying the stall until the last possible moment.
+The new pipeline is composed of
+1. IF: fetch 2 16 bit words and feed them to ID
+2. ID: use the opcode to generate at most 3 uOp/cycle and feed them to the Microcore Reservation Stations (A & B).
+3. Microcore Select uOp: select next uOp and load them in the uOp register
+4. Microcore ALU: execute the selected uOp and start a memory cycle if required
+5. Microcore MEM: execute writes, execute loads and save the result in the temporary register of the relative Reservation Station (Register TA for RSA, Register TB for RSB). 
+The Microcore Repeat stages 3-5 until execution complete. During Main memory cycles, use ALU to execute Spot ALU operations. Load a new operation when needed. During stalls, ID will feed a NOP.
+
+| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+|--|--|--|--|--|--|--|--|--|--|--|--|
+| LD A, (S, src), Y | IF | ID | RS | ALU | MEM | ALU | MEM | ALU
+| ST A, (S, dest), Y | - | IF | ID | RS | ALU | MEM | NOP | - | ALU | MEM

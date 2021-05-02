@@ -24,7 +24,7 @@ Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
 | Immediate Operand | fffffaaas | 0010000 |
 | Register Operand | fffffaaas | 0000rrr |
 | Indexed Operand | fffffaaas | w10jj00 |
-| Indirect Re-Indexed Operand | fffffaaas | w10jjyy |
+| Indirect Indexed Operand | fffffaaas | w11jjyy |
 | Predicated Mov Register | 11100aaas | cccnrrr |
 | Predicated Add Register | 11101aaas | cccnrrr |
 | Predicated Mov Immediate| 11110aaas | cccnrrr |
@@ -60,20 +60,21 @@ Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
 #### Stages
 1. IF: instruction fetch, fetch 16 bit from the memory
 2. ID: instruction decode, fetch optional arguments, issue operations and registers to the back-end, keep track of busy registers (registers that are being calculated). Prevent failed predicted operations to enter the backend. Re Issue registers to the back end for reindexed mode. Create the uOP opcode that flow through the pipeline. Stall instructions if PC need to be updated or flags are required, but are currently busy.
-3. AGU/ALU0: early exit for simple instructions, address calculation for memory operands
-4. Load/Store Unit: load/store values from/to memory
-5. ALU1: ALU for operations with memory values
+3. AGU/ALU0: early exit for simple instructions, address calculation for memory operands. Multi stage
+4. Load/Store Unit: load/store values from/to memory.
+5. ALU1: ALU for operations with memory values.
 #### Problems
-1. ID does too much. It need to keep an enormous amount of state, while the last three stages of the pipeline has almost no state. IF does almost nothing.
-2. IF fetch 16 bit/clock, but 32 bit instructions are common. It is useless to pipeline to get at most 0.5 op/cycle. A simpler implementation with a big late stage that do everything with microcode is already capable of 0.5 ipc (See my other repository 6516). There is no point to waste ton of resources if there is nothing to gain.
-3. With registers checked at ID stage there is a guaranteed full pipeline flush as 3/8 registers are required to be not busy. Considering C mem* functions, all implementations will be something like `LD A, (S, src), Y; ST A, (S, dest), Y; ADD Y, #1`. In the specified sequence everything stall for the entire pipeline  (1°: 1 IF + 3 ID + 2 AGU + 2 MEM + 1 ALU, 2°: 1 ID, 2 AGU + 1 MEM)
+1. ID does too much. It needs to keep an enormous amount of state, while the last three stages of the pipeline has almost no state. IF does almost nothing.
+2. IF fetch 16 bit/clock, but 32 bit instructions are common. It is useless to pipeline the core to get at most 0.5 op/cycle on frequent operations. A simpler implementation with a big late stage that do everything with microcode is already capable of 0.5 ipc (See my other repository 6516). There is no point to waste ton of resources to gain nothing.
+3. With registers checked at ID stage there is a guaranteed full pipeline flush as 3/8 registers are required to be not busy . Considering C mem* functions, all implementations will be something like `LD A, (S, src), Y; ST A, (S, dest), Y; ADD Y, #1`. In the specified sequence everything stall for multiple stages (1°: 1 IF + 3 ID + 2 AGU + 2 MEM + 1 ALU, 2°: 1 ID, 2 AGU + 1 MEM)
+4. No writeback, writeback is impossible with this organization. While most of single operands opcodes are not needed as performance is bad: e.g. "LSR B, mem; ADD A, B; ST B, mem;" is faster than "LSR mem; ADD A, mem;". Cycles for version A are 6 + 1 + 2 = 9 utilizing the pipeline without significant stalls. Cycles for version B are 7 + 5 = 12 as stores stall the pipeline to prevent hazards.
 
 | OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14
 |--|--|--|--|--|--|--|--|--|--|--|--|--|--|--|
 | LD A, (S, src), Y | IF | ID | ID | ID ALU0 | ALU0 | ALU0 | MEM | MEM | ALU1 |
 | ST A, (S, dest), Y | - | - | IF | IF | ID | ID | ID | ID | ID | ID |ID ALU0 | ALU0 | ALU0 | MEM
 
-A single memory transfer in 14 clock cycles is something that even the original 6502 could do, and without the two channels required here. Re-Indexed mode cannot be so slow that is useless. Since there is a limited set of registers and memory accesses are frequents Load/Stores cannot stall the pipeline.  
+A single memory transfer in 14 clock cycles is something that even the original 6502 could do, and without the two channels required here. Indirect Indexed mode cannot be so slow that is useless. Since there is a limited set of registers and memory accesses are frequents, Load/Stores should not stall the pipeline.  
 
 #### Conclusion
 The pipeline need to be redesigned from scratch. Either a register renaming scheme is required or the register file need to be put near the execution units and busy/not busy deferred or avoided. IF is required to implement his own ALU and require a single port to handle predicated instructions that store on PC. A prefetch is needed to push 2 16 bit words/clock on IF.
@@ -95,7 +96,7 @@ The interlieved execution of Memory Operations simplify the state tracking and i
 The new pipeline is composed of
 1. IF: fetch 2 16 bit words and feed them to ID
 2. ID: use the opcode to generate at most 3 uOp/cycle and feed them to the Microcore Reservation Stations (A & B).
-3. Microcore Select uOp: select next uOp and load them in the uOp register
+3. Microcore SCHED: select next uOp and load it in the uOp register. Wait uOps that require busy registers. Note that Main RS doesn't check for busy registers.
 4. Microcore ALU: execute the selected uOp and start a memory cycle if required
 5. Microcore MEM: execute writes, execute loads and save the result in the temporary register of the relative Reservation Station (Register TA for RSA, Register TB for RSB). 
 The Microcore Repeat stages 3-5 until execution complete. During Main memory cycles, use ALU to execute Spot ALU operations. Load a new operation when needed. During stalls, ID will feed a NOP.

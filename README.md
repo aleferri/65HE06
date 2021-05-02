@@ -101,7 +101,9 @@ The new pipeline is composed of
 5. Microcore MEM: execute writes, execute loads and save the result in the temporary register of the relative Reservation Station (Register TA for RSA, Register TB for RSB). 
 The Microcore Repeat stages 3-5 until execution complete. During Main memory cycles, use ALU to execute Spot ALU operations. Load a new operation when needed. During stalls, ID will feed a NOP.
 
-| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
-|--|--|--|--|--|--|--|--|--|--|--|
-| LD A, (S, src), Y | IF | ID | RSA | ALU | MEM | ALU | MEM | ALU
-| ST A, (S, dest), Y | - | IF | ID | RSB | ALU | MEM | NOP | - | ALU | MEM
+| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11
+|--|--|--|--|--|--|--|--|--|--|--|--|
+| SUB? Y, #1 | IF | ID | SCHED | ALU
+| LD A, (S, src), Y | - | IF | ID | SCHED | ALU | MEM | ALU | MEM | ALU
+| ST A, (S, dest), Y | - | - | IF | ID | SCHED | ALU | MEM | SCHED | SCHED | ALU | MEM
+| BEQ SUB | - | - | - | IF | ID | ID | ID | ID | ID | SCHED | ALU | MEM

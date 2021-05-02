@@ -81,8 +81,8 @@ Model of next prototype (Prefetch considered extern for the moment)
 4. MEM: fetch address and data from ALU, push back to register file
 
 #### Proposed Schedule for the new pipeline
-| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
-|--|--|--|--|--|--|--|--|--|--|--|--|
+| OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+|--|--|--|--|--|--|--|--|--|--|
 | LD A, (S, src), Y | IF | ID | ALU | MEM | ALU | MEM | ALU
 | ST A, (S, dest), Y | - | IF | ID | ALU | MEM | WB | - | ALU | MEM
 
@@ -98,6 +98,6 @@ The new pipeline is composed of
 The Microcore Repeat stages 3-5 until execution complete. During Main memory cycles, use ALU to execute Spot ALU operations. Load a new operation when needed. During stalls, ID will feed a NOP.
 
 | OP | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
-|--|--|--|--|--|--|--|--|--|--|--|--|
-| LD A, (S, src), Y | IF | ID | RS | ALU | MEM | ALU | MEM | ALU
-| ST A, (S, dest), Y | - | IF | ID | RS | ALU | MEM | NOP | - | ALU | MEM
+|--|--|--|--|--|--|--|--|--|--|--|
+| LD A, (S, src), Y | IF | ID | RSA | ALU | MEM | ALU | MEM | ALU
+| ST A, (S, dest), Y | - | IF | ID | RSB | ALU | MEM | NOP | - | ALU | MEM

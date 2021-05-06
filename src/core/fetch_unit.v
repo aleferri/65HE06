@@ -14,7 +14,7 @@ module fetch_unit(
     input   wire        pc_inv,
     output  wire[15:0]  pc_out,
     output  wire[15:0]  ir_out,
-    output  wire[15.0]  k16_out,
+    output  wire[15:0]  k16_out,
     output  wire        d_valid
 );
 
@@ -42,14 +42,14 @@ wire[14:0] inc_pc_amount = { 13'b0, pc_i2, ~pc_i2 };
 wire[14:0] pc_addition = pc_inc ? inc_pc_amount : k16[15:1];
 
 
-wire next_status_high_0 = ~inc & ~status[0] | pc_w & status[1] & ~status[0];
+wire next_status_high_0 = ~pc_inc & ~status[0] | pc_w & status[1] & ~status[0];
 wire next_status_high_1 = pc_inv & ~status[1] & ~status[0] | status[1] & ~status[0] & ~pc_w;
 wire next_status_is_11 = next_status_high_1 & next_status_high_0;
 wire ldpc = status[1] & ~status[0] & next_status_is_11 & ~hold;
 wire do_fetch = ~next_status_high_0 & ~next_status_high_1 & ~hold;
 
 always @(posedge clk) begin
-    case (status[1]):
+    case (status[1])
     1'b0: pc <= pc + pc_addition;
     1'b1: pc <= ldpc ? npc[15:1] : pc;
     endcase
@@ -59,7 +59,7 @@ always @(posedge clk) begin
     if (hold) begin
         status <= status;
     end else begin
-        case(status):
+        case(status)
         2'b00: status <= { ~pc_inv, ~pc_inc };
         2'b01: status <= 2'b00 ;
         2'b10: status <= { 1'b1, pc_w };

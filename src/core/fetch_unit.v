@@ -22,7 +22,7 @@ module fetch(
 reg[1:0] status;
 
 //Current PC
-reg[15:0] pc;
+reg[14:0] pc;
 
 //New PC fetched from result bus
 reg next_write;
@@ -38,8 +38,8 @@ always @(posedge clk) begin
     next_write <= pc_w | next_write & status[1];
 end
 
-wire[15:0] inc_pc_amount = { 14'b0, pc_i2, ~pc_i2 };
-wire[15:0] pc_addition = pc_inc ? inc_pc_amount : k16;
+wire[14:0] inc_pc_amount = { 13'b0, pc_i2, ~pc_i2 };
+wire[14:0] pc_addition = pc_inc ? inc_pc_amount : k16[15:1];
 
 
 wire next_status_high_0 = ~inc & ~status[0] | pc_w & status[1] & ~status[0];
@@ -51,7 +51,7 @@ wire do_fetch = ~next_status_high_0 & ~next_status_high_1 & ~hold;
 always @(posedge clk) begin
     case (status[1]):
     1'b0: pc <= pc + pc_addition;
-    1'b1: pc <= ldpc ? npc : pc;
+    1'b1: pc <= ldpc ? npc[15:1] : pc;
     endcase
 end
 
@@ -73,7 +73,7 @@ always @(posedge clk) begin
     k16 <= do_fetch ? fetch_arg : k16;
 end
 
-assign pc_out = pc;
+assign pc_out = { pc, 1'b0 };
 assign ir_out = ir;
 assign k16_out = k16;
 assign valid = ~status[0] & ~status[1];

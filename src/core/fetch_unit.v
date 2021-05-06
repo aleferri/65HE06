@@ -1,4 +1,4 @@
-module fetch(
+module fetch_unit(
     input   wire        clk,
     // memory
     input   wire[15:0]  fetch_opc,

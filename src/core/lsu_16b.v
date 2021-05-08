@@ -11,7 +11,7 @@ module lsu_16b(
     input   wire        mem_rdy,
     output  wire[15:0]  mem_addr,
     output  wire[15:0]  mem_data,
-    output  wire[       mem_cmd,
+    output  wire        mem_cmd,
     output  wire        be0,
     output  wire        be1,
     output  wire        mem_bus_assert,
@@ -27,8 +27,8 @@ reg rs_t_id;
 
 reg busy;
 
-wire next_busy = busy & ~rdy | rq_start;
-wire rq_ack = (busy & rdy | ~busy) & rq_start;
+wire next_busy = busy & ~mem_rdy | rq_start;
+assign rq_ack = (busy & mem_rdy | ~busy) & rq_start;
 
 always @(posedge clk) begin
     busy <= next_busy;
@@ -44,7 +44,7 @@ end
 
 assign mem_addr = address;
 assign mem_data = data;
-assign mem_cmd = cmd;
+assign mem_cmd = command;
 assign be0 = ~mem_addr[0];
 assign be1 = mem_addr[0] | ~mem_addr[1] & ~width;
 assign mem_bus_assert = busy;

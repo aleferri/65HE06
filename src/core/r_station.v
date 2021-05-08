@@ -34,8 +34,8 @@ always @(posedge clk, negedge a_rst) begin
         uop_2 = 2;
         uop_count = 0;
         valid = 0;
-    end else
-        if uop_count == 2'b0 begin
+    end else begin
+        if (uop_count == 2'b0) begin
             uop_0 <= id_uop_0;
             uop_1 <= id_uop_1;
             uop_2 <= id_uop_2;
@@ -54,10 +54,10 @@ end
 always @(posedge clk, negedge a_rst) begin
     if ( ~a_rst ) begin
         temp <= 0;
-    end else
-        if uop_count == 2'b0 begin
+    end else begin
+        if (uop_count == 2'b0) begin
             temp <= id_k16;
-        end else if mem_data_wr begin
+        end else if (mem_data_wr) begin
             temp <= mem_data_in;
         end else begin
             temp <= temp;
@@ -65,7 +65,7 @@ always @(posedge clk, negedge a_rst) begin
     end
 end
 
-assign id_feed_req = 2'b00 = uop_count;
+assign id_feed_req = 2'b00 == uop_count;
 assign ex_uop_last = uop_0;
 
 reg[19:0] next;

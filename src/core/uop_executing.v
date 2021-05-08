@@ -13,6 +13,7 @@ module uop_executing(
     output  wire[1:0]   sel_inp,
     output  wire[2:0]   idx_dest,
     output  wire[3:0]   alu_f,
+    output  wire        carry_mask,
     output  wire        flags_w,
     output  wire        reg_wr,
     output  wire        mar_wr,
@@ -57,5 +58,6 @@ assign mem_rq_cmd = uop[13];
 assign mem_rq = (uop[13] | uop[14]) & ~stop;
 assign sched_main = main;
 assign alu_f = uop[19:16];
+assign carry_mask = ~uop[15];
 
 endmodule

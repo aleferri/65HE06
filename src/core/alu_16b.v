@@ -1,5 +1,5 @@
 
-module alu_ex(
+module alu_16b(
     input   wire        clk,
     input   wire        carry_mask,
     input   wire[3:0]   alu_f,

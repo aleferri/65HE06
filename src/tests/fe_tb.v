@@ -1,13 +1,11 @@
 module fe_tb();
 
 reg clk;
-reg [15:0] cache_bank_a[0:63];
-reg [15:0] cache_bank_b[0:63];
+reg [15:0] cache_bank[0:63];
 reg [6:0] count;
 
-reg[15:0] bank_a;
-reg[15:0] bank_b;
-reg[15:0] prefetch_a;
+reg[15:0] opc;
+reg[15:0] opc_next;
 
 reg hold;
 reg pc_w;
@@ -22,12 +20,14 @@ wire[15:0] prefetch_out;
 wire ir_valid;
 reg rst;
 
+wire[14:0] effective_prefetch = prefetch_out[15:1];
+wire[14:0] effective_pc = pc_out[15:1];
+
 fetch_unit f(
     .clk(clk),
     .a_rst(rst),
-    .fetch_opc(bank_a),
-    .fetch_arg(bank_b),
-    .prefetch_opc(prefetch_a),
+    .fetch_opc(opc),
+    .prefetch_opc(opc_next),
     .hold(hold),
     .prefetch_out(prefetch_out),
     .pc_w(pc_w),
@@ -45,17 +45,15 @@ initial begin
     $dumpfile("testbench_fetch.vcd");
     $dumpvars(0,fe_tb);
     for ( count = 0; count < 64; count++ ) begin
-        cache_bank_a[count] = count * 2;
-        cache_bank_b[count] = count * 2 + 1;
+        cache_bank[count] = count;
     end
     clk = 0;
     pc_inv = 1;
     pc_inc = 0;
     pc_i2 = 0;
     pc_alu = 16'b0;
-    bank_a = 16'b0;
-    bank_b = 16'b0;
-    prefetch_a = 16'b0;
+    opc = 16'b0;
+    opc_next = 16'b0;
     pc_w = 0;
     hold = 1;
     rst = 1;
@@ -82,9 +80,11 @@ end
 
 always begin
     #2 clk <= ~clk;
-    bank_a <= cache_bank_a[ pc_out[6:2] ];
-    bank_b <= cache_bank_b[ pc_out[6:2] ];
-    prefetch_a <= cache_bank_a[ prefetch_out[6:2] ];
+end
+
+always @(negedge clk) begin
+    opc <= cache_bank[ effective_pc[5:0] ];
+    opc_next <= cache_bank[ effective_prefetch[5:0] ];
 end
 
 endmodule

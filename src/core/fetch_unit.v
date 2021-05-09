@@ -3,7 +3,6 @@ module fetch_unit(
     input   wire        a_rst,
     // memory
     input   wire[15:0]  fetch_opc,
-    input   wire[15:0]  fetch_arg,
     input   wire[15:0]  prefetch_opc,
     // memory & decoder
     input   wire        hold,
@@ -30,7 +29,7 @@ reg[14:0] prefetch;
 
 //New PC fetched from result bus
 reg next_write;
-reg[15:0] npc;
+reg[14:0] npc;
 
 //Fetched instruction
 reg[15:0] k16;
@@ -38,7 +37,7 @@ reg[15:0] ir;
 
 
 always @(posedge clk) begin
-    npc <= pc_w ? pc_alu : npc;
+    npc <= pc_w ? pc_alu[15:1] : npc;
     next_write <= pc_w | next_write & status[1];
 end
 
@@ -49,7 +48,6 @@ wire[14:0] pc_addition = pc_inc | hold ? inc_pc_amount : k16[15:1];
 wire next_status_high_0 = ~pc_inc & ~status[0] | pc_w & status[1] & ~status[0];
 wire next_status_high_1 = pc_inv & ~status[1] & ~status[0] | status[1] & ~status[0] & ~pc_w;
 wire next_status_is_11 = next_status_high_1 & next_status_high_0;
-wire ldpc = status[1] & ~status[0] & next_status_is_11 & ~hold;
 wire do_fetch = ~next_status_high_0 & ~next_status_high_1 & ~hold;
 
 always @(posedge clk) begin
@@ -57,7 +55,7 @@ always @(posedge clk) begin
     2'b00: pc <= pc + pc_addition;
     2'b01: pc <= pc;
     2'b10: pc <= npc;
-    2'b11: pc <= pc;
+    2'b11: pc <= pc + pc_addition;
     endcase
 end
 
@@ -66,7 +64,7 @@ always @(posedge clk) begin
     2'b00: prefetch <= pc + pc_addition + 1'b1;
     2'b01: prefetch <= prefetch;
     2'b10: prefetch <= npc + 1'b1;
-    2'b11: prefetch <= prefetch;
+    2'b11: prefetch <= pc + pc_addition + 1'b1;
     endcase
 end
 
@@ -88,18 +86,8 @@ always @(posedge clk or negedge a_rst) begin
 end
 
 always @(posedge clk) begin
-    case({do_fetch, pc[0]})
-    2'b00: ir <= ir;
-    2'b01: ir <= ir;
-    2'b10: ir <= fetch_opc;
-    2'b11: ir <= k16;
-    endcase
-    case({do_fetch, pc[0]})
-    2'b00: k16 <= k16;
-    2'b01: k16 <= k16;
-    2'b10: k16 <= fetch_arg;
-    2'b11: k16 <= prefetch_opc;
-    endcase
+    ir <= do_fetch ? fetch_opc : ir;
+    k16 <= do_fetch ? prefetch_opc : k16;
 end
 
 assign pc_out = { pc, 1'b0 };

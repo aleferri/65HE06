@@ -25,9 +25,7 @@ Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
 | Register Operand | fffffaaas | 0000rrr |
 | Indexed Operand | fffffaaas | w10jj00 |
 | Indirect Indexed Operand | fffffaaas | w11jjyy |
-| Predicated Mov Register | 11100aaas | cccnrrr |
 | Predicated Add Register | 11101aaas | cccnrrr |
-| Predicated Mov Immediate| 11110aaas | cccnrrr |
 | Predicated Add Immediate| 11111aaas | cccnrrr |
 
 1. R(3) is source register, flow is: OP(A, R) -> A

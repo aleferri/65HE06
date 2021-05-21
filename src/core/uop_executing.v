@@ -10,18 +10,18 @@ module uop_executing(
     output  wire[15:0]  t16,
     output  wire[2:0]   idx_a,
     output  wire[2:0]   idx_b,
-    output  wire[1:0]   sel_inp,
+    output  wire        sel_inp,
     output  wire[2:0]   idx_dest,
     output  wire[3:0]   alu_f,
     output  wire        carry_mask,
     output  wire        flags_w,
     output  wire        reg_wr,
     output  wire        mar_wr,
-    output  wire        mem_rq_data,
     output  wire        mem_rq_width,
     output  wire        mem_rq_cmd,
     output  wire        mem_rq,
-    output  wire        sched_main
+    output  wire        sched_main,
+    output  wire        main_ex_mem
 );
 parameter NOP = 20'b0000_0000_1111_00_000_000;
 
@@ -47,17 +47,17 @@ end
 assign t16 = temp;
 assign idx_a = uop[2:0];
 assign idx_b = uop[5:3];
-assign sel_inp = uop[7:6];
+assign sel_inp = uop[6];
 assign idx_dest = uop[10:8];
 assign reg_wr = ~uop[11] & ~stop;
 assign flags_w = uop[12] & ~stop;
 assign mar_wr = uop[11] & ~uop[10] & ~uop[9] & ~stop;
-assign mem_rq_data = mar_wr;
 assign mem_rq_width = mar_wr & uop[8];
 assign mem_rq_cmd = uop[13];
 assign mem_rq = (uop[13] | uop[14]) & ~stop;
 assign sched_main = main;
 assign alu_f = uop[19:16];
 assign carry_mask = ~uop[15];
+assign main_ex_mem = mem_rq & sched_main == sched;
 
 endmodule

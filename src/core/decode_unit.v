@@ -60,6 +60,7 @@ wire is_sbc = ir[15:11] == SBC_OP;
 wire is_rol = ir[15:11] == ROL_OP;
 wire is_ror = ir[15:11] == ROR_OP;
 
+wire is_ld  = ~ir[15];
 wire is_sta = ir[15:11] == STA_OP;
 wire is_rmw = ir[15:11] == RMW_OP;
 wire is_inc = ir[10:8] == UNARY_INC;
@@ -74,6 +75,7 @@ wire is_stp = ir[15:11] == 5'b11010;
 
 wire is_addcc_imm = ir[15:11] == 5'b11110;
 wire is_addcc_reg = ir[15:11] == 5'b11111;
+wire cc_flags = ir[6:4];
 
 reg[3:0] alu_bits_last_step;
 
@@ -85,6 +87,9 @@ wire is_idx = ir[5:4] == 2'b10;
 wire is_ixy = ir[5:4] == 2'b11;
 wire is_push = (ir[1:0] == 2'b10) & is_idx; // @A - k16 -> A ; B -> [@A + k16] ; [post decrement, k16 = 1]
 wire is_pop = (ir[1:0] == 2'b11) & is_idx; // inc @A ; [@A + k16] -> T; T -> @D; [pre increment, k16 = 0]
+
+wire is_predicated_op = is_addcc_imm | is_addcc_reg;
+wire is_taken_pred = ( sf[cc_flags] == ir[3] );
 
 always @(*) begin
     case(ir[15:11])
@@ -114,26 +119,38 @@ wire field_reg_0 = ir[10:8];
 wire field_reg_1 = ir[2:0];
 wire field_reg_2 = ir[3:2];
 wire field_reg_3 = ir[1:0];
-wire is_post_inc = ir[1] & ~ir[0];
-wire is_pre_dec = ir[1] & ir[0];
 
 reg busy_sf;
 reg[1:0] status;
 
 wire width_bit = ir[6];
 
-wire is_pc_update = (is_pc_inv | is_predicated_op_op & busy_sf) & (status == 2'b00);
+wire is_pc_dest = (field_reg_0 == 3'b011) & ~is_sta;
+wire is_pc_update = (is_pc_dest | is_predicated_op & busy_sf) & (status == 2'b00);
 
-wire high_bit_0 = (status == 2'b00) & is_predicated_op & busy_sf | ~taken_pred & (status == 2'b11);
-wire high_bit_1 =  is_pc_update | (~valid_pc & status == 2'b10 ) | ( status == 2'b11 & busy );
 
-wire issued = ~high_bit_0 & ~high_bit_1 & feed_req & ir_valid;
+wire bit_0_active = (status == 2'b00) & is_predicated_op & busy_sf | ~is_taken_pred & (status == 2'b11);
+wire bit_1_active = is_pc_update | (~ir_valid & status == 2'b10 ) | ( status == 2'b11 & busy_sf );
+
+wire issued = ~bit_0_active & ~bit_1_active & feed_req & ir_valid;
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
         status <= 2'b0;
     end else begin
-        status <= { high_bit_1, high_bit_0 };
+        status <= hold ? status : { bit_1_active, bit_0_active };
+    end
+end
+
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
+        busy_sf <= 1'b0;
+    end else begin
+        if ( busy_sf ) begin
+            busy_sf <= hold | ~(~hold & sf_written);
+        end else begin
+            busy_sf <= (status == 2'b0) & (field_reg_0 == 3'b010) & ~is_sta & ~hold & ir_valid;
+        end
     end
 end
 
@@ -151,13 +168,13 @@ assign uop_2 = {
     1'b1,
     is_pop ? field_reg_2 : field_reg_3, // B register select, don't care for uop_2
     1'b1, // A register select top bit. It is always index, so 1
-    is_pop ? field_reg_3
+    is_pop ? field_reg_2 : field_reg_3
 };
 
 assign uop_1 = {
     is_push ? 4'b0010 : 4'b0111, //sub if push
     1'b0,
-    is_sta & is_ixy | is_ld
+    is_sta & is_ixy | is_ld,
     is_push,
     1'b0,
     is_push ? { 2'b01, field_reg_2 } : { 3'b100, is_sta & is_ixy ? width_bit : 1'b0 },
@@ -172,13 +189,20 @@ assign uop_0 = {
     1'b0,
     is_rmw | is_sta,
     save_flags,
-    is_sta ? { 3'b100, width_bit } : field_reg_0,
-    is_imm ? 2'b01 : is_reg ? 2'b00,
+    is_sta | is_rmw ? { 3'b100, width_bit } : field_reg_0,
+    is_reg ? 2'b01 : 2'b00,
     field_reg_1,
     field_reg_0
 };
 
-assign uop_count = 2'b0;
+assign uop_count = (is_reg | is_imm | is_sta & is_idx & ~is_push) ? 2'b0 : ( is_lda & is_idx & ~is_pop | is_sta & ( is_ixy | is_push ) ) ? 2'b01 : 2'b10;
 assign restore_int = is_rti & issued;
+
+assign feed_ack = issued;
+assign br_taken = is_taken_pred;
+assign pc_i2 = ~is_reg & ~is_addcc_reg;
+assign pc_inc = ~is_pc_dest & ~is_predicated_op;
+assign pc_inv = is_pc_dest & ~is_predicated_op;
+assign sel_pc = is_reg & (field_reg_1 == 3'b011) | is_sta & (field_reg_0 == 3'b011);
 
 endmodule

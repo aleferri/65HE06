@@ -20,6 +20,7 @@ module uop_executing(
     output  wire        mem_rq_width,
     output  wire        mem_rq_cmd,
     output  wire        mem_rq,
+    output  wire        sched_now,
     output  wire        sched_main,
     output  wire        main_ex_mem
 );
@@ -58,5 +59,6 @@ assign sched_main = main;
 assign alu_f = uop[19:16];
 assign carry_mask = ~uop[15];
 assign main_ex_mem = mem_rq & sched_main == sched;
+assign sched_now = sched;
 
 endmodule

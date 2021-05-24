@@ -14,9 +14,9 @@ module decode_unit(
     output  wire        pc_i2,
     output  wire        pc_inc,
     output  wire        restore_int,
-    output  wire[15:0]  uop_0,
-    output  wire[15:0]  uop_1,
-    output  wire[15:0]  uop_2,
+    output  wire[19:0]  uop_0,
+    output  wire[19:0]  uop_1,
+    output  wire[19:0]  uop_2,
     output  wire[1:0]   uop_count
 );
 parameter ADD_OP = 5'b00000;
@@ -112,6 +112,7 @@ always @(*) begin
     EXT_OP: alu_bits_last_step = 4'b1000;
     BSW_OP: alu_bits_last_step = 4'b1001;
     RMW_OP: alu_bits_last_step = is_dep ? 4'b0011 : 4'b0001;
+    default: alu_bits_last_step = 4'b0000;
     endcase
 end
 
@@ -136,7 +137,7 @@ wire issued = ~bit_0_active & ~bit_1_active & feed_req & ir_valid;
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
-        status <= 2'b0;
+        status = 2'b0;
     end else begin
         status <= hold ? status : { bit_1_active, bit_0_active };
     end
@@ -144,7 +145,7 @@ end
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
-        busy_sf <= 1'b0;
+        busy_sf = 1'b0;
     end else begin
         if ( busy_sf ) begin
             busy_sf <= hold | ~(~hold & sf_written);

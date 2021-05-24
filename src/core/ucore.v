@@ -17,10 +17,12 @@ module ucore(
     output  wire        mem_rq_width,
     output  wire        mem_rq_cmd,
     output  wire        mem_rq_prepare_addr,
+    output  wire        mem_t_id,
     output  wire[15:0]  id_sf_data,
     output  wire        id_sf_wr,
     output  wire[15:0]  fe_pc,
-    output  wire        fe_pc_wr
+    output  wire        fe_pc_wr,
+    output  wire        de_feed_req
 );
 
 wire rsa_feed_req;
@@ -50,6 +52,8 @@ wire[19:0] sched_uop;
 
 assign sched_ack_rsa = ~sched_next;
 assign sched_ack_rsb = sched_next;
+
+assign de_feed_req = rsa_feed_req | rsb_feed_req;
 
 r_station rsa(
     .clk ( clk ),
@@ -134,7 +138,8 @@ uop_executing scheduled(
     .mem_rq_cmd ( mem_rq_cmd ),
     .mem_rq ( mem_rq_start ),
     .sched_main ( main_sched ),
-    .main_ex_mem ( main_ex_mem )
+    .main_ex_mem ( main_ex_mem ),
+    .sched_now ( mem_t_id )
 );
 
 alu_16b main_alu(

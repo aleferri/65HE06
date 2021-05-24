@@ -1,0 +1,10 @@
+read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\ucore.v
+read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\alu_16b.v
+read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\r_station.v
+read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\scheduler.v
+read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\uop_executing.v
+hierarchy -check -top ucore
+proc; opt; fsm; opt; memory; opt
+flatten
+techmap; opt
+synth_intel -top ucore

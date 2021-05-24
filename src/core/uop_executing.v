@@ -23,7 +23,6 @@ module uop_executing(
     output  wire        sched_main,
     output  wire        main_ex_mem
 );
-parameter NOP = 20'b0000_0000_1111_00_000_000;
 
 reg[19:0] uop;
 reg[15:0] temp;
@@ -31,11 +30,11 @@ reg main;
 reg sched;
 
 always @(posedge clk or negedge a_rst) begin
-    if ( ~ a_rst ) begin
-        main <= 1'b0;
-        sched <= 1'b0;
-        uop <= NOP;
-        temp <= 16'b0;
+    if ( ~a_rst ) begin
+        main = 1'b0;
+        sched = 1'b0;
+        uop = 20'b0;
+        temp = 16'b0;
     end else begin
         uop <= uop_next;
         temp <= next_sched ? temp_b : temp_a;

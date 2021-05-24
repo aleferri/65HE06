@@ -48,6 +48,9 @@ wire main_ex_mem;
 
 wire[19:0] sched_uop;
 
+assign sched_ack_rsa = ~sched_next;
+assign sched_ack_rsb = sched_next;
+
 r_station rsa(
     .clk ( clk ),
     .a_rst ( a_rst ),
@@ -104,6 +107,9 @@ wire[3:0] alu_fn;
 wire alu_mux_sel;
 
 wire reg_wr;
+wire wr_sf_flags;
+wire wr_sf_result;
+wire alu_allow_carry;
 
 uop_executing scheduled(
     .clk ( clk ),
@@ -121,7 +127,7 @@ uop_executing scheduled(
     .idx_dest ( alu_d ),
     .alu_f ( alu_fn ),
     .carry_mask ( alu_allow_carry ),
-    .flags_w ( sf_write ),
+    .flags_w ( wr_sf_flags ),
     .reg_wr ( reg_wr ),
     .mar_wr ( mem_rq_prepare_addr ),
     .mem_rq_width ( mem_rq_width ),
@@ -138,8 +144,8 @@ alu_16b main_alu(
     .a_idx ( alu_a ),
     .b_idx ( alu_b ),
     .d_idx ( alu_d ),
-    .wr_reg ( wr_reg ),
-    .wr_flags ( sf_write ),
+    .wr_reg ( reg_wr ),
+    .wr_flags ( wr_sf_flags ),
     .t16 ( alu_t16 ),
     .sel_inp ( alu_mux_sel ),
     .flags ( id_sf_data ),
@@ -149,6 +155,6 @@ alu_16b main_alu(
     .wr_pc ( fe_pc_wr )
 );
 
-assign id_sf_wr = sf_write;
+assign id_sf_wr = wr_sf_flags | (alu_d == 4'b0010);
 
 endmodule

@@ -29,11 +29,11 @@ reg valid;
 
 always @(posedge clk, negedge a_rst) begin
     if ( ~a_rst ) begin
-        uop_0 = 0;
-        uop_1 = 1;
-        uop_2 = 2;
-        uop_count = 0;
-        valid = 0;
+        uop_0 = 20'b0;
+        uop_1 = 20'b0;
+        uop_2 = 20'b0;
+        uop_count = 2'b0;
+        valid = 1'b0;
     end else begin
         if (uop_count == 2'b0) begin
             uop_0 <= id_uop_0;
@@ -53,7 +53,7 @@ end
 
 always @(posedge clk, negedge a_rst) begin
     if ( ~a_rst ) begin
-        temp <= 0;
+        temp <= 16'b0;
     end else begin
         if (uop_count == 2'b0) begin
             temp <= id_k16;

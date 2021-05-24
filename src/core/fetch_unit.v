@@ -50,22 +50,30 @@ wire next_status_high_1 = pc_inv & ~status[1] & ~status[0] | status[1] & ~status
 wire next_status_is_11 = next_status_high_1 & next_status_high_0;
 wire do_fetch = ~next_status_high_0 & ~next_status_high_1 & ~hold;
 
-always @(posedge clk) begin
-    case (status)
-    2'b00: pc <= pc + pc_addition;
-    2'b01: pc <= pc;
-    2'b10: pc <= npc;
-    2'b11: pc <= pc + pc_addition;
-    endcase
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
+        pc <= 15'b0;
+    end else begin
+        case (status)
+        2'b00: pc <= pc + pc_addition;
+        2'b01: pc <= pc;
+        2'b10: pc <= npc;
+        2'b11: pc <= pc + pc_addition;
+        endcase
+    end
 end
 
-always @(posedge clk) begin
-    case (status)
-    2'b00: prefetch <= pc + pc_addition + 1'b1;
-    2'b01: prefetch <= prefetch;
-    2'b10: prefetch <= npc + 1'b1;
-    2'b11: prefetch <= pc + pc_addition + 1'b1;
-    endcase
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
+        prefetch <= 15'b0;
+    end else begin
+        case (status)
+        2'b00: prefetch <= pc + pc_addition + 1'b1;
+        2'b01: prefetch <= prefetch;
+        2'b10: prefetch <= npc + 1'b1;
+        2'b11: prefetch <= pc + pc_addition + 1'b1;
+        endcase
+    end
 end
 
 always @(posedge clk or negedge a_rst) begin
@@ -85,9 +93,14 @@ always @(posedge clk or negedge a_rst) begin
     end
 end
 
-always @(posedge clk) begin
-    ir <= do_fetch ? fetch_opc : ir;
-    k16 <= do_fetch ? prefetch_opc : k16;
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
+        ir <= 16'b0;
+        k16 <= 16'b0;
+    end else begin
+        ir <= do_fetch ? fetch_opc : ir;
+        k16 <= do_fetch ? prefetch_opc : k16;
+    end
 end
 
 assign pc_out = { pc, 1'b0 };

@@ -43,7 +43,7 @@ reg acquired;
 always @(*) begin
     a_val = bank_a[a_idx];
     b_val = bank_b[b_idx];
-    sel_val = sel_inp ? t16 : b_val;
+    sel_val = sel_inp ? b_val : t16;
     zero_before = b_val == 16'b0;
     carry_in = ( sf[0] ^ is_sub ) & ~carry_mask;
     case(alu_f)

@@ -65,7 +65,7 @@ always @(posedge clk, negedge a_rst) begin
     end
 end
 
-assign id_feed_req = 2'b00 == uop_count;
+assign id_feed_req = ( 2'b00 == uop_count & ex_sched_ack ) | ~valid;
 assign ex_uop_last = uop_0;
 
 reg[19:0] next;

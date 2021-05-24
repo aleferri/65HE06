@@ -81,10 +81,10 @@ reg[3:0] alu_bits_last_step;
 
 wire save_flags = ir[7];
 
-wire is_reg = ir[5:4] == 2'b00;
-wire is_imm = ir[5:4] == 2'b01;
-wire is_idx = ir[5:4] == 2'b10;
-wire is_ixy = ir[5:4] == 2'b11;
+wire is_reg = ir[5:4] == 2'b00 & ~is_addcc_imm & ~is_addcc_reg;
+wire is_imm = ir[5:4] == 2'b01 & ~is_addcc_imm & ~is_addcc_reg;
+wire is_idx = ir[5:4] == 2'b10 & ~is_addcc_imm & ~is_addcc_reg;
+wire is_ixy = ir[5:4] == 2'b11 & ~is_addcc_imm & ~is_addcc_reg;
 wire is_push = (ir[1:0] == 2'b10) & is_idx; // @A - k16 -> A ; B -> [@A + k16] ; [post decrement, k16 = 1]
 wire is_pop = (ir[1:0] == 2'b11) & is_idx; // inc @A ; [@A + k16] -> T; T -> @D; [pre increment, k16 = 0]
 
@@ -116,10 +116,10 @@ always @(*) begin
     endcase
 end
 
-wire field_reg_0 = ir[10:8];
-wire field_reg_1 = ir[2:0];
-wire field_reg_2 = ir[3:2];
-wire field_reg_3 = ir[1:0];
+wire[2:0] field_reg_0 = ir[10:8];
+wire[2:0] field_reg_1 = ir[2:0];
+wire[1:0] field_reg_2 = ir[3:2];
+wire[1:0] field_reg_3 = ir[1:0];
 
 reg busy_sf;
 reg[1:0] status;
@@ -150,7 +150,7 @@ always @(posedge clk or negedge a_rst) begin
         if ( busy_sf ) begin
             busy_sf <= hold | ~(~hold & sf_written);
         end else begin
-            busy_sf <= (status == 2'b0) & (field_reg_0 == 3'b010) & ~is_sta & ~hold & ir_valid;
+            busy_sf <= (status == 2'b0) & (field_reg_0 == 3'b010 | save_flags) & ~is_sta & ~hold & ir_valid;
         end
     end
 end
@@ -185,13 +185,13 @@ assign uop_1 = {
 };
 
 assign uop_0 = {
-    alu_bits_last_step,
-    is_adc | is_sbc | is_rol | is_ror,
-    1'b0,
-    is_rmw | is_sta,
-    save_flags,
-    is_sta | is_rmw ? { 3'b100, width_bit } : field_reg_0,
-    is_reg ? 2'b01 : 2'b00,
+    alu_bits_last_step, // 4 bits
+    is_adc | is_sbc | is_rol | is_ror, //1 bit
+    1'b0, // 1 bit
+    is_rmw | is_sta, // 1 bit
+    save_flags, // 1 bit
+    is_sta | is_rmw ? { 3'b100, width_bit } : field_reg_0, // dest: 4 bit
+    is_reg ? 2'b01 : 2'b00, //sel p
     field_reg_1,
     field_reg_0
 };

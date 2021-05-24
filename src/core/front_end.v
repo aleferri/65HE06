@@ -59,15 +59,12 @@ wire[15:0] fu_ir;
 wire fu_ready_ir;
 wire mux_forward_pc;
 
-wire de_pc_i2;
-wire de_pc_inc;
-wire de_pc_inv;
-
 assign hold_fetch = ~i_mem_rdy | ( fu_ready_ir & ~ex_feed_ack );
 assign hold_decode = ~fu_ready_ir | ~ex_feed_req;
 assign ex_k = mux_forward_pc ? pc : fu_arg;
 
 assign i_mem_pc = pc;
+assign i_mem_prefetch = prefetch;
 
 fetch_unit fu(
     .clk ( clk ),
@@ -81,7 +78,7 @@ fetch_unit fu(
     .pc_i2 ( de_pc_i2 ),
     .pc_inv ( de_pc_inv ),
     .pc_out ( pc ),
-    .prefetch_out ( i_mem_prefetch ),
+    .prefetch_out ( prefetch ),
     .ir_out ( fu_ir ),
     .k16_out ( fu_arg ),
     .ir_valid ( fu_ready_ir )

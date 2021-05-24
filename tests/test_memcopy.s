@@ -1,5 +1,7 @@
 
-_reset:     LDA:Y   #100
+_reset:     LDA:A   #0
+            LDA:Z   #0
+            LDA:Y   #100
             LDA:A   #$C000
             STA:A   $A0
             LDA:A   #$B000

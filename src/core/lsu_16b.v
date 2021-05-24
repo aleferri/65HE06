@@ -30,8 +30,12 @@ reg busy;
 wire next_busy = busy & ~mem_rdy | rq_start;
 assign rq_ack = (busy & mem_rdy | ~busy) & rq_start;
 
-always @(posedge clk) begin
-    busy <= next_busy;
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
+        busy <= 1'b0;
+    end else begin
+        busy <= next_busy;
+    end
 end
 
 always @(posedge clk) begin

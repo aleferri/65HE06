@@ -2,6 +2,7 @@ module r_station(
     input   wire        clk,
     input   wire        a_rst,
     
+    input   wire        id_feed_ack,
     output  wire        id_feed_req,
     
     input   wire[19:0]  id_uop_0,
@@ -11,6 +12,7 @@ module r_station(
     
     output  wire[19:0]  ex_uop_last,
     output  wire[19:0]  ex_uop_next,
+    output  wire        ex_is_valid,
     
     input   wire[15:0]  id_k16,
     input   wire[15:0]  mem_data_in,
@@ -33,19 +35,32 @@ always @(posedge clk, negedge a_rst) begin
         uop_1 = 20'b0;
         uop_2 = 20'b0;
         uop_count = 2'b0;
-        valid = 1'b0;
     end else begin
-        if (uop_count == 2'b0) begin
+        if ((uop_count == 2'b00) & id_feed_ack) begin
             uop_0 <= id_uop_0;
             uop_1 <= id_uop_1;
             uop_2 <= id_uop_2;
             uop_count <= id_uop_count;
-            valid <= ex_sched_ack;
         end else begin
             uop_0 <= uop_0;
             uop_1 <= uop_1;
             uop_2 <= uop_2;
-            uop_count <= uop_count - ex_sched_ack;
+            uop_count <= uop_count - (ex_sched_ack & ( uop_count != 2'b00 ));
+        end
+    end
+end
+
+// is valid if
+// was valid before and not is next
+// was invalid, but is being fed
+// was valid, is scheduled, but is being fed
+always @(posedge clk, negedge a_rst) begin
+    if ( ~a_rst ) begin
+        valid = 1'b0;
+    end else begin
+        if (uop_count == 2'b00) begin
+            valid <= valid & ~ex_sched_ack | ~valid & id_feed_ack | valid & ex_sched_ack & id_feed_ack;
+        end else begin
             valid <= valid;
         end
     end
@@ -55,7 +70,7 @@ always @(posedge clk, negedge a_rst) begin
     if ( ~a_rst ) begin
         temp <= 16'b0;
     end else begin
-        if (uop_count == 2'b0) begin
+        if ((uop_count == 2'b0) & id_feed_ack) begin
             temp <= id_k16;
         end else if (mem_data_wr) begin
             temp <= mem_data_in;
@@ -81,5 +96,7 @@ end
 
 assign ex_uop_next = next;
 assign ex_data_out = temp;
+
+assign ex_is_valid = valid;
 
 endmodule

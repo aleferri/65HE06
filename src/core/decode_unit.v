@@ -11,7 +11,6 @@ module decode_unit(
     output  wire        sel_pc,
     output  wire        br_taken,
     output  wire        pc_inv,
-    output  wire        pc_i2,
     output  wire        pc_inc,
     output  wire        restore_int,
     output  wire[19:0]  uop_0,
@@ -99,7 +98,7 @@ always @(*) begin
     CAR_OP: alu_bits_last_step = 4'b0000;
     SUB_OP,
     CMP_OP,
-    SBC_OP: alu_bits_last_step = 4'b0001;
+    SBC_OP: alu_bits_last_step = 4'b0010;
     ROL_OP,
     ASL_OP: alu_bits_last_step = 4'b1011;
     ROR_OP,
@@ -190,7 +189,7 @@ assign uop_0 = {
     1'b0, // 1 bit
     is_rmw | is_sta, // 1 bit
     save_flags, // 1 bit
-    is_sta | is_rmw ? { 3'b100, width_bit } : field_reg_0, // dest: 4 bit
+    is_sta | is_rmw | (is_predicated_op & ~is_taken_pred) ? { 3'b1, (is_predicated_op & ~is_taken_pred), 1'b0, width_bit } : field_reg_0, // dest: 4 bit
     is_reg ? 2'b01 : 2'b00, //sel p
     field_reg_1,
     field_reg_0
@@ -201,7 +200,6 @@ assign restore_int = is_rti & issued;
 
 assign feed_ack = issued;
 assign br_taken = is_taken_pred;
-assign pc_i2 = ~is_reg & ~is_addcc_reg;
 assign pc_inc = ~is_pc_dest & ~is_predicated_op;
 assign pc_inv = is_pc_dest & ~is_predicated_op;
 assign sel_pc = is_reg & (field_reg_1 == 3'b011) | is_sta & (field_reg_0 == 3'b011);

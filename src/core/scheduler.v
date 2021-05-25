@@ -3,6 +3,8 @@ module scheduler(
     input   wire[19:0]  uop_next_b,
     input   wire        uop_is_last_a,
     input   wire        uop_is_last_b,
+    input   wire        is_a_valid,
+    input   wire        is_b_valid,
     input   wire[19:0]  uop_last_a,
     input   wire[19:0]  uop_last_b,
     input   wire        main_sched,
@@ -30,7 +32,7 @@ wire is_a_main = ~main_sched;
 wire is_b_main = main_sched;
 
 assign next_sched = main_sched ^ ( ex_doing_mem & is_a_rdy_if_next & is_b_main | ex_doing_mem & is_b_rdy_if_next & is_a_main );
-assign next_main = main_sched ^ ( is_a_main & uop_is_last_a & ~next_sched | is_b_main & uop_is_last_b & next_sched );
+assign next_main = main_sched ^ ( is_a_main & uop_is_last_a & ~next_sched & is_b_valid | is_b_main & uop_is_last_b & next_sched & is_a_valid );
 assign uop_next = next_sched ? uop_next_b : uop_next_a;
 
 endmodule

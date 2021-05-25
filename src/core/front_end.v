@@ -4,8 +4,7 @@ module front_end(
     input   wire        a_rst,
     input   wire        evt_int,
     output  wire        evt_int_ack,
-    input   wire[15:0]  i_mem_opcode,
-    input   wire[15:0]  i_mem_prefetch_opcode,
+    input   wire[31:0]  i_mem_opcode,
     input   wire        i_mem_rdy,
     input   wire        ex_pc_w,
     input   wire[15:0]  ex_pc,
@@ -14,7 +13,6 @@ module front_end(
     input   wire[7:0]   ex_sf,
     input   wire        ex_sf_wr,
     output  wire[15:0]  i_mem_pc,
-    output  wire[15:0]  i_mem_prefetch,
     output  wire[19:0]  ex_uop_0,
     output  wire[19:0]  ex_uop_1,
     output  wire[19:0]  ex_uop_2,
@@ -26,7 +24,6 @@ wire hold_fetch;
 wire hold_decode;
 wire br_taken;
 wire de_pc_inc;
-wire de_pc_i2;
 wire de_pc_inv;
 
 reg int_mask;
@@ -53,7 +50,6 @@ end
 assign evt_int_ack = ~int_mask & int_mask_next;
 
 wire[15:0] pc;
-wire[15:0] prefetch;
 wire[15:0] fu_arg;
 wire[15:0] fu_ir;
 wire fu_ready_ir;
@@ -64,21 +60,17 @@ assign hold_decode = ~fu_ready_ir | ~ex_feed_req;
 assign ex_k = mux_forward_pc ? pc : fu_arg;
 
 assign i_mem_pc = pc;
-assign i_mem_prefetch = prefetch;
 
 fetch_unit fu(
     .clk ( clk ),
     .a_rst ( a_rst ),
     .fetch_opc ( i_mem_opcode ),
-    .prefetch_opc ( i_mem_prefetch_opcode ),
     .hold ( hold_fetch ),
     .pc_w ( ex_pc_w ),
     .pc_alu ( ex_pc ),
     .pc_inc ( de_pc_inc ),
-    .pc_i2 ( de_pc_i2 ),
     .pc_inv ( de_pc_inv ),
     .pc_out ( pc ),
-    .prefetch_out ( prefetch ),
     .ir_out ( fu_ir ),
     .k16_out ( fu_arg ),
     .ir_valid ( fu_ready_ir )
@@ -97,7 +89,6 @@ decode_unit decode(
     .sel_pc ( mux_forward_pc ),
     .br_taken ( br_taken ),
     .pc_inv ( de_pc_inv ),
-    .pc_i2 ( de_pc_i2 ),
     .pc_inc ( de_pc_inc ),
     .restore_int ( int_restore ),
     .uop_0 ( ex_uop_0 ),

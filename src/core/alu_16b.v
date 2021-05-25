@@ -32,27 +32,31 @@ reg[15:0] address_val;
 reg[15:0] a_val;
 reg[15:0] b_val;
 reg[15:0] sel_val;
+reg[15:0] not_val;
 reg carry;
 reg overflow;
 reg zero;
 reg negative;
 reg zero_before;
 reg carry_in;
+reg not_carry_in;
 reg acquired;
 
 always @(*) begin
     a_val = bank_a[a_idx];
     b_val = bank_b[b_idx];
     sel_val = sel_inp ? b_val : t16;
+    not_val = ~sel_val;
     zero_before = b_val == 16'b0;
-    carry_in = ( sf[0] ^ is_sub ) & ~carry_mask;
+    carry_in = sf[0] & carry_mask;
+    not_carry_in = ~carry_in;
     case(alu_f)
     //  ADD/ADC
     4'b0000: { carry, result_val } = a_val + sel_val + carry_in;
     //  INC
     4'b0001: { carry, result_val } = b_val + 1'b1;
     //  SUB/SBC
-    4'b0010: { carry, result_val } = a_val + ~sel_val + carry_in;
+    4'b0010: { carry, result_val } = a_val + not_val + not_carry_in;
     //  DEP
     4'b0011: { carry, result_val } = b_val - ~zero_before;
     //  AND
@@ -62,7 +66,7 @@ always @(*) begin
     //  EOR
     4'b0110: { carry, result_val } = { 1'b0, a_val ^ sel_val };
     //  LDA
-    4'b0111: { carry, result_val } = { 1'b0, b_val };
+    4'b0111: { carry, result_val } = { 1'b0, sel_val };
     //  EXT (Sign Ext 8 -> 16)
     4'b1000: { carry, result_val } = { 1'b0, sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val };
     //  BSW (Bytes SWap)

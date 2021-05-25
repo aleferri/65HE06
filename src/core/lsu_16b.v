@@ -50,7 +50,7 @@ assign mem_addr = address;
 assign mem_data = data;
 assign mem_cmd = command;
 assign be0 = ~mem_addr[0];
-assign be1 = mem_addr[0] | ~mem_addr[1] & ~width;
+assign be1 = mem_addr[0] | ~mem_addr[0] & ~width;
 assign mem_bus_assert = busy;
 assign t_id = rs_t_id;
 

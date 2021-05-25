@@ -22,11 +22,15 @@ module ucore(
     output  wire        id_sf_wr,
     output  wire[15:0]  fe_pc,
     output  wire        fe_pc_wr,
-    output  wire        de_feed_req
+    output  wire        de_feed_req,
+    input   wire        de_feed_ack
 );
 
 wire rsa_feed_req;
 wire rsb_feed_req;
+
+wire rsa_feed_ack;
+wire rsb_feed_ack;
 
 wire[19:0] rsa_last;
 wire[19:0] rsa_next;
@@ -48,6 +52,9 @@ wire main_sched;
 wire main_next;
 wire main_ex_mem;
 
+wire is_a_valid;
+wire is_b_valid;
+
 wire[19:0] sched_uop;
 
 assign sched_ack_rsa = ~sched_next;
@@ -55,10 +62,14 @@ assign sched_ack_rsb = sched_next;
 
 assign de_feed_req = rsa_feed_req | rsb_feed_req;
 
+assign rsa_feed_ack = rsa_feed_req & de_feed_ack & ( sched_ack_rsa | ~sched_ack_rsa & ~rsb_last );
+assign rsb_feed_ack = rsb_feed_req & de_feed_ack & ~rsa_feed_ack;
+
 r_station rsa(
     .clk ( clk ),
     .a_rst ( a_rst ),
     .id_feed_req ( rsa_feed_req ),
+    .id_feed_ack ( rsa_feed_ack ),
     .id_uop_0 ( uop_0 ),
     .id_uop_1 ( uop_1 ),
     .id_uop_2 ( uop_2 ),
@@ -69,13 +80,15 @@ r_station rsa(
     .mem_data_in ( mem_data_in ),
     .mem_data_wr ( wr_data_rsa ),
     .ex_sched_ack ( sched_ack_rsa ),
-    .ex_data_out ( rsa_t16 )
+    .ex_data_out ( rsa_t16 ),
+    .ex_is_valid ( is_a_valid )
 );
 
 r_station rsb(
     .clk ( clk ),
     .a_rst ( a_rst ),
     .id_feed_req ( rsb_feed_req ),
+    .id_feed_ack ( rsb_feed_ack ),
     .id_uop_0 ( uop_0 ),
     .id_uop_1 ( uop_1 ),
     .id_uop_2 ( uop_2 ),
@@ -86,7 +99,8 @@ r_station rsb(
     .mem_data_in ( mem_data_in ),
     .mem_data_wr ( wr_data_rsb ),
     .ex_sched_ack ( sched_ack_rsb ),
-    .ex_data_out ( rsb_t16 )
+    .ex_data_out ( rsb_t16 ),
+    .ex_is_valid ( is_b_valid )
 );
 
 scheduler sched(
@@ -94,6 +108,8 @@ scheduler sched(
     .uop_next_b ( rsb_next ),
     .uop_is_last_a ( rsa_feed_req ),
     .uop_is_last_b ( rsb_feed_req ),
+    .is_a_valid ( is_a_valid ),
+    .is_b_valid ( is_b_valid ),
     .uop_last_a ( rsa_last ),
     .uop_last_b ( rsb_last ),
     .main_sched ( main_sched ),

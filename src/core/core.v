@@ -4,11 +4,9 @@ module core(
     input   wire        a_rst,
     input   wire        evt_int,
     output  wire        evt_int_ack,
-    input   wire[15:0]  i_mem_opcode,
-    input   wire[15:0]  i_mem_prefetch_opcode,
+    input   wire[31:0]  i_mem_opcode,
     input   wire        i_mem_rdy,
     output  wire[15:0]  i_mem_pc,
-    output  wire[15:0]  i_mem_prefetch,
     input   wire        d_mem_rdy,
     input   wire[15:0]  d_mem_data_in,
     output  wire[15:0]  d_mem_addr,
@@ -52,7 +50,6 @@ front_end front(
     .evt_int ( evt_int ),
     .evt_int_ack ( evt_int_ack ),
     .i_mem_opcode ( i_mem_opcode ),
-    .i_mem_prefetch_opcode ( i_mem_prefetch_opcode ),
     .i_mem_rdy ( i_mem_rdy ),
     .ex_pc_w ( ex_pc_w ),
     .ex_pc ( ex_pc ),
@@ -61,7 +58,6 @@ front_end front(
     .ex_sf ( ex_sf ),
     .ex_sf_wr ( ex_sf_wr ),
     .i_mem_pc ( i_mem_pc ),
-    .i_mem_prefetch ( i_mem_prefetch ),
     .ex_uop_0 ( ex_uop_0 ),
     .ex_uop_1 ( ex_uop_1 ),
     .ex_uop_2 ( ex_uop_2 ),
@@ -92,7 +88,8 @@ ucore back(
     .id_sf_wr ( ex_sf_wr ),
     .fe_pc ( ex_pc ),
     .fe_pc_wr ( ex_pc_w ),
-    .de_feed_req ( ex_feed_req )
+    .de_feed_req ( ex_feed_req ),
+    .de_feed_ack ( ex_feed_ack )
 );
 
 lsu_16b lsu(

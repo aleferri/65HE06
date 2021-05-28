@@ -2,21 +2,20 @@
 module core_tb;
 
 reg clk;
+reg[15:0] clock_count;
 reg rst;
 wire evt_int = 1'b0;
 wire evt_int_ack;
 
 reg[15:0] i_bank[0:63];
-reg[15:0] opc;
-reg[15:0] opc_next;
+reg[31:0] opc;
 wire i_mem_rdy = 1'b1;
 
 wire[15:0] pc;
-wire[15:0] prefetch;
 
 always @(negedge clk) begin
-    opc <= i_bank[ pc[6:1] ];
-    opc_next <= i_bank[ prefetch[6:1] ];
+    opc[31:16] <= i_bank[ { pc[6:2], 1'b0 } ];
+    opc[15:0] <= i_bank[ { pc[6:2], 1'b1 } ];
 end
 
 reg[7:0] d_bank[0:65535];
@@ -52,10 +51,8 @@ core dut(
     .evt_int ( evt_int ),
     .evt_int_ack ( evt_int_ack ),
     .i_mem_opcode ( opc ),
-    .i_mem_prefetch_opcode ( opc_next ),
     .i_mem_rdy ( i_mem_rdy ),
     .i_mem_pc ( pc ),
-    .i_mem_prefetch ( prefetch ),
     .d_mem_rdy ( d_mem_rdy ),
     .d_mem_data_in ( d_data_in ),
     .d_mem_data_out ( d_data_out ),
@@ -73,28 +70,30 @@ initial begin
         d_bank[count] = count[15:8];
     end
     
-    i_bank[0] = 16'h0000;
-    i_bank[1] = 16'b00010_111_1001_0000;
-    i_bank[2] = 16'h0000;
-    i_bank[3] = 16'b00010_000_0000_0111;
+    clock_count = 0;
+    
+    i_bank[0] = 16'b00010_111_1001_0000;
+    i_bank[1] = 16'h0000;
+    i_bank[2] = 16'b00010_100_0001_0000;
+    i_bank[3] = 16'h0000;
     i_bank[4] = 16'b00010_110_0001_0000;
     i_bank[5] = 16'h0064;
     i_bank[6] = 16'b00010_000_0001_0000;
     i_bank[7] = 16'hC000;
-    i_bank[8] = 16'b01100_000_0010_1100;
+    i_bank[8] = 16'b10000_000_0010_1100;
     i_bank[9] = 16'h00A0;
     i_bank[10] = 16'b00010_000_0001_0000;
     i_bank[11] = 16'hB000;
-    i_bank[12] = 16'b01100_000_0010_1100;
+    i_bank[12] = 16'b10000_000_0010_1100;
     i_bank[13] = 16'h00A2;
-    i_bank[14] = 16'h0E90;
+    i_bank[14] = 16'b00001_110_0001_0000;
     i_bank[15] = 16'h0001;
-    i_bank[16] = 16'h103E;
+    i_bank[16] = 16'b00010_000_0111_1110;
     i_bank[17] = 16'h00A0;
-    i_bank[18] = 16'h603E;
+    i_bank[18] = 16'b10000_000_0111_1110;
     i_bank[19] = 16'h00A2;
     i_bank[20] = 16'hF320;
-    i_bank[21] = 16'hFFF8;
+    i_bank[21] = 16'hFFF0;
     i_bank[22] = 16'h1010;
     i_bank[23] = 16'h0000;
     i_bank[24] = 16'h6020;
@@ -102,15 +101,19 @@ initial begin
     for ( count = 26; count < 64; count++ ) begin
         i_bank[count] = 16'b0;
     end
-    $display(count);
     rst = 1;
     clk = 1;
     #1 rst = 0;
     #5
     rst = 1;
-    #50
+    #200
+    $display(clock_count);
     $finish;
     
+end
+
+always @(posedge clk) begin
+    clock_count <= clock_count + 1;
 end
 
 always begin

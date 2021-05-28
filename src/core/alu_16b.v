@@ -42,7 +42,7 @@ reg carry_in;
 reg not_carry_in;
 reg acquired;
 
-always @(*) begin
+always @(a_idx, b_idx, sel_inp, alu_f, carry_mask, sf, has_v, is_sub, is_dep) begin
     a_val = bank_a[a_idx];
     b_val = bank_b[b_idx];
     sel_val = sel_inp ? b_val : t16;

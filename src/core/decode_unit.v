@@ -80,8 +80,8 @@ reg[3:0] alu_bits_last_step;
 
 wire save_flags = ir[7];
 
-wire is_reg = ir[5:4] == 2'b00 & ~is_addcc_imm & ~is_addcc_reg;
-wire is_imm = ir[5:4] == 2'b01 & ~is_addcc_imm & ~is_addcc_reg;
+wire is_reg = (ir[5:4] == 2'b00 & ~is_addcc_imm & ~is_addcc_reg) | is_addcc_reg;
+wire is_imm = (ir[5:4] == 2'b01 & ~is_addcc_imm & ~is_addcc_reg) | is_addcc_imm;
 wire is_idx = ir[5:4] == 2'b10 & ~is_addcc_imm & ~is_addcc_reg;
 wire is_ixy = ir[5:4] == 2'b11 & ~is_addcc_imm & ~is_addcc_reg;
 wire is_push = (ir[1:0] == 2'b10) & is_idx; // @A - k16 -> A ; B -> [@A + k16] ; [post decrement, k16 = 1]
@@ -155,14 +155,13 @@ always @(posedge clk or negedge a_rst) begin
 end
 
 assign uop_2 = {
-    3'b0,
+    3'b0, 
     is_pop,
     1'b0, //mask flags
     ~is_pop, // ld
     1'b0, // wr
     1'b0, //write flags,
-    is_pop ? { 2'b01, field_reg_2 } : { 4'b1000 }, // destination top 3 bits 
-    1'b0,
+    is_pop ? { 2'b01, field_reg_2 } : 4'b1000, // destination bits
     1'b0,
     ~is_pop,  // select input for ALU
     1'b1,
@@ -177,7 +176,7 @@ assign uop_1 = {
     is_sta & is_ixy | is_ld,
     is_push,
     1'b0,
-    is_push ? { 2'b01, field_reg_2 } : { 3'b100, is_sta & is_ixy ? width_bit : 1'b0 },
+    is_push ? { 2'b01, field_reg_2 } : { 3'b100, (is_sta & is_ixy) ? width_bit : 1'b0 },
     2'b01,
     field_reg_1,
     is_sta & is_ixy ? { 1'b1, field_reg_3 } : { 1'b1, field_reg_2 }
@@ -189,7 +188,7 @@ assign uop_0 = {
     1'b0, // 1 bit
     is_rmw | is_sta, // 1 bit
     save_flags, // 1 bit
-    is_sta | is_rmw | (is_predicated_op & ~is_taken_pred) ? { 3'b1, (is_predicated_op & ~is_taken_pred), 1'b0, width_bit } : field_reg_0, // dest: 4 bit
+    is_sta | is_rmw | (is_predicated_op & ~is_taken_pred) ? { 1'b1, (is_predicated_op & ~is_taken_pred), 1'b0, width_bit } : field_reg_0, // dest: 4 bit
     is_reg ? 2'b01 : 2'b00, //sel p
     field_reg_1,
     field_reg_0

@@ -59,7 +59,7 @@ assign mem_rq_cmd = uop[13];
 assign mem_rq = (uop[13] | uop[14]) & ~stop;
 assign sched_main = main;
 assign alu_f = uop[19:16];
-assign carry_mask = ~uop[15];
+assign carry_mask = uop[15];
 assign main_ex_mem = mem_rq & sched_main == sched;
 assign sched_now = sched;
 

@@ -88,7 +88,7 @@ always @(a_idx, b_idx, sel_inp, alu_f, carry_mask, sf, has_v, is_sub, is_dep) be
     4'b1111: { result_val, carry } = 17'b0;
     endcase
     overflow = has_v & ( result_val[15] & ~a_val[15] & ((~sel_val[15]) ^ is_sub) | ~result_val[15] & a_val[15] & (sel_val[15] ^ is_sub) );
-    zero = result_val == 0;
+    zero = ( result_val == 0 );
     negative = result_val[15];
     acquired = ~zero_before & is_dep;
     result_flags = { acquired, negative, zero, overflow, carry };

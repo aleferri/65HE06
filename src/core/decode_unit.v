@@ -74,7 +74,7 @@ wire is_stp = ir[15:11] == 5'b11010;
 
 wire is_addcc_imm = ir[15:11] == 5'b11110;
 wire is_addcc_reg = ir[15:11] == 5'b11111;
-wire cc_flags = ir[6:4];
+wire[2:0] cc_flags = ir[6:4];
 
 reg[3:0] alu_bits_last_step;
 
@@ -87,8 +87,9 @@ wire is_ixy = ir[5:4] == 2'b11 & ~is_addcc_imm & ~is_addcc_reg;
 wire is_push = (ir[1:0] == 2'b10) & is_idx; // @A - k16 -> A ; B -> [@A + k16] ; [post decrement, k16 = num]
 wire is_pop = (ir[1:0] == 2'b11) & is_idx; // [@A + k16] -> T, @A + k16 -> @A; T -> @D; [pre increment, k16 = num]
 
+wire is_flag_bit_set = ir[3];
 wire is_predicated_op = is_addcc_imm | is_addcc_reg;
-wire is_taken_pred = ( sf[cc_flags] == ir[3] );
+wire is_taken_pred = ( sf[cc_flags] == is_flag_bit_set );
 wire not_taken_pred = ~is_taken_pred & is_predicated_op;
 
 always @(*) begin
@@ -198,8 +199,8 @@ assign uop_count = (is_reg | is_imm | is_sta & is_idx & ~is_push) ? 2'b0 : ( is_
 assign restore_int = is_rti & issued;
 
 assign feed_ack = issued;
-assign br_taken = is_taken_pred;
-assign pc_inc = ~is_pc_dest & ~is_predicated_op;
+assign br_taken = is_predicated_op & is_taken_pred;
+assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred;
 assign pc_inv = is_pc_dest & ~is_addcc_imm;
 assign sel_pc = is_reg & (field_reg_1 == 3'b011) | is_sta & (field_reg_0 == 3'b011);
 

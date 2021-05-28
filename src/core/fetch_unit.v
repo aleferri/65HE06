@@ -22,6 +22,7 @@ reg[1:0] status;
 
 //Current PC
 reg[13:0] pc;
+reg[13:0] pc_backup;
 
 //New PC fetched from result bus
 reg next_write;
@@ -59,14 +60,17 @@ end
 wire next_status_high_0 = next_status[0];
 wire next_status_high_1 = next_status[1];
 wire next_status_is_11 = next_status_high_1 & next_status_high_0;
-wire do_fetch = next_status_high_0 & ~next_status_high_1 & ~hold;
+wire do_fetch = ( next_status_high_0 & ~next_status_high_1  ) & ~hold;
+wire ready_mem = ~hold;
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
         pc <= 14'b0;
+        pc_backup <= 14'b0;
     end else begin
+        pc_backup <= pc;
         case (status)
-        2'b00: pc <= pc;
+        2'b00: pc <= pc + ready_mem;
         2'b01: pc <= pc + pc_addition;
         2'b10: pc <= npc;
         2'b11: pc <= pc + pc_addition;
@@ -92,7 +96,7 @@ always @(posedge clk or negedge a_rst) begin
     end
 end
 
-assign pc_out = { pc, 2'b0 };
+assign pc_out = { do_fetch ? pc : pc_backup, 2'b0 };
 assign ir_out = ir;
 assign k16_out = k16;
 assign ir_valid = status[0] & ~status[1];

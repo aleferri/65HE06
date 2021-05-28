@@ -13,11 +13,6 @@ wire i_mem_rdy = 1'b1;
 
 wire[15:0] pc;
 
-always @(negedge clk) begin
-    opc[31:16] <= i_bank[ { pc[6:2], 1'b0 } ];
-    opc[15:0] <= i_bank[ { pc[6:2], 1'b1 } ];
-end
-
 reg[7:0] d_bank[0:65535];
 reg[15:0] d_data_in;
 wire[15:0] d_data_out;
@@ -47,6 +42,13 @@ always @(negedge clk) begin
                 d_data_in[15:8] <= 8'b0;
             end
         end
+    end
+end
+
+always @(negedge clk) begin
+    if ( d_assert & d_cmd & ( d_addr == 16'hFFFE ) ) begin
+        $display( "Completion at %d", clock_count );
+        $finish;
     end
 end
 
@@ -91,7 +93,7 @@ initial begin
     i_bank[11] = 16'hB000;
     i_bank[12] = 16'b10000_000_0010_1100;   // STA      $00A2
     i_bank[13] = 16'h00A2;
-    i_bank[14] = 16'b00001_110_0001_0000;   // SUB:Y    #1 ?
+    i_bank[14] = 16'b00001_110_1001_0000;   // SUB:Y    #1 ?
     i_bank[15] = 16'h0001;
     i_bank[16] = 16'b00010_000_0111_1011;   // LDA      byte ($00A0), Y
     i_bank[17] = 16'h00A0;
@@ -99,22 +101,19 @@ initial begin
     i_bank[19] = 16'h00A2;
     i_bank[20] = 16'hF320;                  // BNE      -16
     i_bank[21] = 16'hFFF0;
-    i_bank[22] = 16'h1010;
-    i_bank[23] = 16'h0000;
-    i_bank[24] = 16'h6020;
-    i_bank[25] = 16'hFFFF;
-    for ( count = 26; count < 64; count++ ) begin
+    i_bank[22] = 16'b10000_000_0010_0000;   // STZ      $FFFE
+    i_bank[23] = 16'hFFFE;
+    
+    for ( count = 24; count < 64; count++ ) begin
         i_bank[count] = 16'b0;
     end
-    rst = 1;
-    clk = 1;
-    #1 rst = 0;
-    #5
-    rst = 1;
-    #200
-    $display(clock_count);
-    $finish;
     
+    rst = 0;
+    clk = 0;
+    #4 rst = 1;
+    #3600
+    $display("Not completed in time");
+    $finish;
 end
 
 always @(posedge clk) begin
@@ -123,6 +122,11 @@ end
 
 always begin
     #2 clk <= ~clk;
+end
+
+always @(negedge clk) begin
+    opc[31:16] = i_bank[ { pc[6:2], 1'b0 } ];
+    opc[15:0] = i_bank[ { pc[6:2], 1'b1 } ];
 end
 
 endmodule

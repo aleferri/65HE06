@@ -95,7 +95,7 @@ always @(*) begin
 end
 
 assign ex_uop_next = next;
-assign ex_data_out = temp;
+assign ex_data_out = mem_data_wr ? mem_data_in : temp;
 
 assign ex_is_valid = valid;
 

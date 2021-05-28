@@ -32,15 +32,20 @@ reg[16:0] count;
 always @(negedge clk) begin
     if ( d_assert ) begin
         if ( d_cmd ) begin
-            if ( d_be0 ) begin
-                d_bank[ d_addr ] <= d_data_out[7:0];
-            end
-            if ( d_be1 ) begin
-                d_bank[ { d_addr[15:1], d_be0 } ] <= d_be0 ? d_data_out[15:8] : d_data_out[7:0];
+            if ( d_be0 & d_be1 ) begin
+                d_bank[ { d_addr[15:1], 1'b0 } ] <= d_data_out[ 15:8 ];
+                d_bank[ { d_addr[15:1], 1'b1 } ] <= d_data_out[ 7:0 ];
+            end else begin
+                d_bank[ d_addr[15:1] ] <= d_data_out[ 7:0 ];
             end
         end else begin
-            d_data_in[7:0] <= d_bank[ {d_addr[15:1], ~d_be0} ];
-            d_data_in[15:0] <= (d_be0 & d_be1) ? d_bank[ { d_addr[15:1], 1'b1 } ] : 8'b0;
+            if ( d_be0 & d_be1 ) begin
+                d_data_in[15:8] <= d_bank[ { d_addr[15:1], 1'b0 } ];
+                d_data_in[7:0] <= d_bank[ { d_addr[15:1], 1'b1 } ];
+            end else begin
+                d_data_in[7:0] <= d_bank[ d_addr ];
+                d_data_in[15:8] <= 8'b0;
+            end
         end
     end
 end
@@ -72,27 +77,27 @@ initial begin
     
     clock_count = 0;
     
-    i_bank[0] = 16'b00010_111_1001_0000;
+    i_bank[0] = 16'b00010_111_1001_0000;    // LDZ      #0 ?
     i_bank[1] = 16'h0000;
-    i_bank[2] = 16'b00010_100_0001_0000;
+    i_bank[2] = 16'b00010_100_0001_0000;    // LDS      #0
     i_bank[3] = 16'h0000;
-    i_bank[4] = 16'b00010_110_0001_0000;
+    i_bank[4] = 16'b00010_110_0001_0000;    // LDY      #$64
     i_bank[5] = 16'h0064;
-    i_bank[6] = 16'b00010_000_0001_0000;
+    i_bank[6] = 16'b00010_000_0001_0000;    // LDA      #$C000
     i_bank[7] = 16'hC000;
-    i_bank[8] = 16'b10000_000_0010_1100;
+    i_bank[8] = 16'b10000_000_0010_1100;    // STA      $00A0
     i_bank[9] = 16'h00A0;
-    i_bank[10] = 16'b00010_000_0001_0000;
+    i_bank[10] = 16'b00010_000_0001_0000;   // LDA      #$B000
     i_bank[11] = 16'hB000;
-    i_bank[12] = 16'b10000_000_0010_1100;
+    i_bank[12] = 16'b10000_000_0010_1100;   // STA      $00A2
     i_bank[13] = 16'h00A2;
-    i_bank[14] = 16'b00001_110_0001_0000;
+    i_bank[14] = 16'b00001_110_0001_0000;   // SUB:Y    #1 ?
     i_bank[15] = 16'h0001;
-    i_bank[16] = 16'b00010_000_0111_1110;
+    i_bank[16] = 16'b00010_000_0111_1011;   // LDA      byte ($00A0), Y
     i_bank[17] = 16'h00A0;
-    i_bank[18] = 16'b10000_000_0111_1110;
+    i_bank[18] = 16'b10000_000_0111_1011;   // STA      byte ($00A2), Y
     i_bank[19] = 16'h00A2;
-    i_bank[20] = 16'hF320;
+    i_bank[20] = 16'hF320;                  // BNE      -16
     i_bank[21] = 16'hFFF0;
     i_bank[22] = 16'h1010;
     i_bank[23] = 16'h0000;

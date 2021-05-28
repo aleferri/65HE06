@@ -16,6 +16,7 @@ module uop_executing(
     output  wire        carry_mask,
     output  wire        flags_w,
     output  wire        reg_wr,
+    output  wire        adr_wr_back,
     output  wire        mar_wr,
     output  wire        mem_rq_width,
     output  wire        mem_rq_cmd,
@@ -48,6 +49,7 @@ assign t16 = temp;
 assign idx_a = uop[2:0];
 assign idx_b = uop[5:3];
 assign sel_inp = uop[6];
+assign adr_wr_back = uop[7];
 assign idx_dest = uop[10:8];
 assign reg_wr = ~uop[11] & ~stop;
 assign flags_w = uop[12] & ~stop;

@@ -1,13 +1,13 @@
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\core.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\front_end.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\fetch_unit.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\decode_unit.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\ucore.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\alu_16b.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\r_station.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\scheduler.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\uop_executing.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\lsu_16b.v
+read_verilog ./core/core.v
+read_verilog ./core/front_end.v
+read_verilog ./core/fetch_unit.v
+read_verilog ./core/decode_unit.v
+read_verilog ./core/ucore.v
+read_verilog ./core/alu_16b.v
+read_verilog ./core/r_station.v
+read_verilog ./core/scheduler.v
+read_verilog ./core/uop_executing.v
+read_verilog ./core/lsu_16b.v
 hierarchy -check -top core
 proc; opt; fsm; opt; memory; opt
 flatten

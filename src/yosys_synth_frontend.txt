@@ -1,6 +1,6 @@
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\front_end.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\fetch_unit.v
-read_verilog F:\Progetti\CPU\Architetture\Developing\65HE06\src\core\decode_unit.v
+read_verilog ./core/front_end.v
+read_verilog ./core/fetch_unit.v
+read_verilog ./core/decode_unit.v
 hierarchy -check -top front_end
 proc; opt; fsm; opt; memory; opt
 flatten

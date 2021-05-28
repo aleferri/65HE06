@@ -130,6 +130,7 @@ wire reg_wr;
 wire wr_sf_flags;
 wire wr_sf_result;
 wire alu_allow_carry;
+wire alu_write_back_addr;
 
 uop_executing scheduled(
     .clk ( clk ),
@@ -144,6 +145,7 @@ uop_executing scheduled(
     .idx_a ( alu_a ),
     .idx_b ( alu_b ),
     .sel_inp ( alu_mux_sel ),
+    .adr_wr_back ( alu_write_back_addr ),
     .idx_dest ( alu_d ),
     .alu_f ( alu_fn ),
     .carry_mask ( alu_allow_carry ),
@@ -169,6 +171,7 @@ alu_16b main_alu(
     .wr_flags ( wr_sf_flags ),
     .t16 ( alu_t16 ),
     .sel_inp ( alu_mux_sel ),
+    .wr_back_addr ( alu_write_back_addr ),
     .flags ( id_sf_data ),
     .d_val ( fe_pc ),
     .mar_val ( mem_rq_addr ),

@@ -84,11 +84,12 @@ wire is_reg = (ir[5:4] == 2'b00 & ~is_addcc_imm & ~is_addcc_reg) | is_addcc_reg;
 wire is_imm = (ir[5:4] == 2'b01 & ~is_addcc_imm & ~is_addcc_reg) | is_addcc_imm;
 wire is_idx = ir[5:4] == 2'b10 & ~is_addcc_imm & ~is_addcc_reg;
 wire is_ixy = ir[5:4] == 2'b11 & ~is_addcc_imm & ~is_addcc_reg;
-wire is_push = (ir[1:0] == 2'b10) & is_idx; // @A - k16 -> A ; B -> [@A + k16] ; [post decrement, k16 = 1]
-wire is_pop = (ir[1:0] == 2'b11) & is_idx; // inc @A ; [@A + k16] -> T; T -> @D; [pre increment, k16 = 0]
+wire is_push = (ir[1:0] == 2'b10) & is_idx; // @A - k16 -> A ; B -> [@A + k16] ; [post decrement, k16 = num]
+wire is_pop = (ir[1:0] == 2'b11) & is_idx; // [@A + k16] -> T, @A + k16 -> @A; T -> @D; [pre increment, k16 = num]
 
 wire is_predicated_op = is_addcc_imm | is_addcc_reg;
 wire is_taken_pred = ( sf[cc_flags] == ir[3] );
+wire not_taken_pred = ~is_taken_pred & is_predicated_op;
 
 always @(*) begin
     case(ir[15:11])
@@ -155,52 +156,51 @@ always @(posedge clk or negedge a_rst) begin
 end
 
 assign uop_2 = {
-    3'b0, 
-    is_pop,
+    4'b0,
     1'b0, //mask flags
-    ~is_pop, // ld
+    1'b1, // ld
     1'b0, // wr
     1'b0, //write flags,
-    is_pop ? { 2'b01, field_reg_2 } : 4'b1000, // destination bits
-    1'b0,
-    ~is_pop,  // select input for ALU
-    1'b1,
-    is_pop ? field_reg_2 : field_reg_3, // B register select, don't care for uop_2
-    1'b1, // A register select top bit. It is always index, so 1
-    is_pop ? field_reg_2 : field_reg_3
+    4'b1000, // destination bits
+    1'b0,  // write back address
+    1'b0,  // select input for ALU, always select K
+    { 1'b1, field_reg_3 }, // B register select, don't care for uop_2
+    { 1'b1, field_reg_3 } // A register select, top bit is always 1
 };
 
 assign uop_1 = {
-    is_push ? 4'b0010 : 4'b0111, //sub if push
-    1'b0,
-    is_sta & is_ixy | is_ld,
-    is_push,
-    1'b0,
-    is_push ? { 2'b01, field_reg_2 } : { 3'b100, (is_sta & is_ixy) ? width_bit : 1'b0 },
-    2'b01,
-    field_reg_1,
-    is_sta & is_ixy ? { 1'b1, field_reg_3 } : { 1'b1, field_reg_2 }
+    is_push ? 4'b0010 : 4'b0111, // sub if push
+    1'b0,                        // always mask
+    is_sta & is_ixy | is_ld,     // load if is sta indirect or is load
+    1'b0,                        // never store
+    1'b0,                        // never write flags 
+    is_push ? { 2'b01, field_reg_2 } : { 3'b100, is_ld & width_bit }, // width is 1 only if is load 8 bit
+    is_pop,                      // write back address if is pop
+    1'b0,                        // always select K                      
+    field_reg_1,                 // don't care, as we always select K
+    (is_sta & is_ixy) ? { 1'b1, field_reg_3 } : { 1'b1, field_reg_2 } // source is re-index if sta indirect, index otherwise
 };
 
 assign uop_0 = {
-    alu_bits_last_step, // 4 bits
-    is_adc | is_sbc | is_rol | is_ror, //1 bit
-    1'b0, // 1 bit
-    is_rmw | is_sta, // 1 bit
-    save_flags, // 1 bit
-    is_sta | is_rmw | (is_predicated_op & ~is_taken_pred) ? { 1'b1, (is_predicated_op & ~is_taken_pred), 1'b0, width_bit } : field_reg_0, // dest: 4 bit
-    is_reg ? 2'b01 : 2'b00, //sel p
-    field_reg_1,
-    field_reg_0
+    alu_bits_last_step,         // selected ALU function
+    is_adc | is_sbc | is_rol | is_ror, //do not mask if the op use carry
+    1'b0,                              //last operation cannot load
+    is_rmw | is_sta,                   //write if is sta or read-modify-write
+    save_flags,                        //save flags if the op requires it
+    ( is_sta | is_rmw | not_taken_pred ) ? { 1'b1, not_taken_pred, 1'b0, width_bit } : field_reg_0, // dest: 4 bit
+    1'b0,                              //never write back
+    is_reg,                            //select p if K
+    is_sta ? field_reg_0 : field_reg_1,  //if op is store then B register is @A
+    is_sta ? { 1'b1, field_reg_2 } : field_reg_0 // if op is store then A register is index
 };
 
-assign uop_count = (is_reg | is_imm | is_sta & is_idx & ~is_push) ? 2'b0 : ( is_lda & is_idx & ~is_pop | is_sta & ( is_ixy | is_push ) ) ? 2'b01 : 2'b10;
+assign uop_count = (is_reg | is_imm | is_sta & is_idx & ~is_push) ? 2'b0 : ( is_lda & is_idx | is_sta & is_ixy | is_push ) ? 2'b01 : 2'b10;
 assign restore_int = is_rti & issued;
 
 assign feed_ack = issued;
 assign br_taken = is_taken_pred;
 assign pc_inc = ~is_pc_dest & ~is_predicated_op;
-assign pc_inv = is_pc_dest & ~is_predicated_op;
+assign pc_inv = is_pc_dest & ~is_addcc_imm;
 assign sel_pc = is_reg & (field_reg_1 == 3'b011) | is_sta & (field_reg_0 == 3'b011);
 
 endmodule

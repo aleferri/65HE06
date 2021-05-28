@@ -10,6 +10,7 @@ module alu_16b(
     input   wire        wr_flags,
     input   wire[15:0]  t16,
     input   wire        sel_inp,
+    input   wire        wr_back_addr,
     output  wire[15:0]  flags,
     output  wire[15:0]  d_val,
     output  wire[15:0]  mar_val,
@@ -25,6 +26,8 @@ reg[15:0] sf;
 wire is_sub = ~alu_f[3] & ~alu_f[2] & alu_f[1] & ~alu_f[0];
 wire is_dep = ~alu_f[3] & ~alu_f[2] & alu_f[1] & alu_f[0];
 wire has_v = ~alu_f[3] & ~alu_f[2];
+
+wire[2:0] wr_reg_idx = wr_back_addr ? a_idx : d_idx;
 
 reg[15:0] result_val;
 reg[15:0] result_flags;
@@ -94,8 +97,8 @@ end
 
 always @(posedge clk) begin
     if ( wr_reg ) begin
-        bank_b[ d_idx ] = result_val;
-        bank_a[ d_idx ] = result_val;
+        bank_b[ wr_reg_idx ] = result_val;
+        bank_a[ wr_reg_idx ] = result_val;
     end
 end
 

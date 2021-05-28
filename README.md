@@ -107,4 +107,4 @@ The Microcore Repeat stages 3-5 until the execution is complete. During Main mem
 | SUB? Y, #1 | IF | ID | SCHED | ALU
 | LD A, (S, src), Y | - | IF | ID | SCHED | ALU | MEM | ALU | MEM | ALU
 | ST A, (S, dest), Y | - | - | IF | ID | SCHED | ALU | MEM | SCHED | SCHED | ALU | MEM
-| BEQ SUB | - | - | - | IF | ID | ID | ID | ID | ID | SCHED | ALU | MEM
+| BNE SUB | - | - | - | IF | ID | ID | ID | ID | ID | SCHED | ALU | 

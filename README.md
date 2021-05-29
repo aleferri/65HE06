@@ -1,5 +1,5 @@
 # 65HE06
-Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
+Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502. HE mean Half-word Extended, with a 32 bit word.
 
 ## Design
 ### Goals
@@ -63,9 +63,9 @@ Prototype implementation of a Pipelined 16 bit Accumulator CPU, inspired by 6502
 5. ALU1: ALU for operations with memory values.
 #### Problems
 1. ID does too much. It needs to keep an enormous amount of state, while the last three stages of the pipeline have almost no state. IF does almost nothing.
-2. IF fetch 16 bit/clock, but 32 bit instructions are common. It is useless to pipeline the core to get at most 0.5 op/cycle on frequent operations. A simpler implementation with a single microcoded late stage that do everything is already capable of 0.5 ipc (See my other repository 6516). There is no point to waste ton of resources to gain nothing.
-3. With registers checked at ID stage there is a guaranteed full pipeline flush everytime someone write a register as 3/8 registers are required to be not busy . Considering C mem* functions, all implementations will be something like `LD A, (S, src), Y; ST A, (S, dest), Y; ADD Y, #1`. In the specified sequence everything stall for multiple stages (1°: 1 IF + 3 ID + 2 AGU + 2 MEM, 2°: 1 ID, 2 AGU + 1 MEM)
-4. No writeback, writeback is impossible with this configuration. While most of single operands opcodes are not needed as performance is bad: e.g. "LSR B, mem; ADD A, B; ST B, mem;" is faster than "LSR mem; ADD A, mem;", atomic operations are popular and registers spills cost a lot anyway.
+2. IF fetch 16 bit/clock, but 32 bit instructions are common. It is useless to pipeline the core to get at most 0.5 op/cycle on frequent operations. A simpler implementation with a single microcoded late stage that do everything is already capable of 0.5 ipc for the common opcodes (See my other repository 6516). There is no point to waste ton of resources to gain nothing.
+3. With registers checked at ID stage there is a guaranteed full pipeline flush everytime someone write a register since 3/8 registers are required to be not busy . Considering C mem* functions, all implementations will be something like `LD A, (S, src), Y; ST A, (S, dest), Y; ADD Y, #1`. In the specified sequence everything stall for multiple stages (1°: 1 IF + 3 ID + 2 AGU + 2 MEM, 2°: 1 ID, 2 AGU + 1 MEM)
+4. No writeback to memory as writeback is impossible with this configuration. While most of rmw operands opcodes are not needed because their performance is bad: e.g. "LSR B, mem; ADD A, B; ST B, mem;" is faster than "LSR mem; ADD A, mem;", atomic operations are popular and registers spills come with great cost.
 
 Example pipeline run with this configuration of a memory transfer between two array with pointer on stack, index in Y.
 
@@ -93,7 +93,7 @@ Model of next prototype (Prefetch considered extern for the moment)
 ## Implementation 2
 ### 4/8 Stage Multi cycle interlieved Micro-Executed Pipeline
 Given the aforementioned requirements and conclusions, a new pipeline is being developed.
-The interlieved execution of Memory Operations simplify the state tracking and improve performance delaying the stall until the last possible moment.
+The interlieved execution of Memory Operations simplify the state tracking and improve performance by delaying the stall until the last possible moment.
 The new pipeline is composed of
 1. IF: fetch 2 16 bit words and feed them to ID
 2. ID: use the opcode to generate at most 3 uOp/cycle and feed them to the Microcore Reservation Stations (A & B).
@@ -107,4 +107,13 @@ The Microcore Repeat stages 3-5 until the execution is complete. During Main mem
 | SUB? Y, #1 | IF | ID | SCHED | ALU
 | LD A, (S, src), Y | - | IF | ID | SCHED | ALU | MEM | ALU | MEM | ALU
 | ST A, (S, dest), Y | - | - | IF | ID | SCHED | ALU | MEM | SCHED | SCHED | ALU | MEM
-| BEQ SUB | - | - | - | IF | ID | ID | ID | ID | ID | SCHED | ALU | MEM
+| BNE SUB | - | - | - | IF | ID | ID | ID | ID | ID | SCHED | ALU | 
+
+### Performances so far
+100 byte transfer using indirect indexed complete in 800 clocks, using direct indexed it requires only 600 clocks. Current performance is two/three fold of the original 6502, so the large implementation did improve performance in a meaningful way.
+
+### TODO
+Implement interrupts
+Implement bsr immediate
+Implement jsr any
+Evaluate further code speedup. It is expected that with over 200% improvement in comparable code (+- 1 instruction) there will be additionals gains from stack relative addressing, B register and full 16 bit arithmetic.

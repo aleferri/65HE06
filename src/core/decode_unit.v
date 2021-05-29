@@ -199,7 +199,7 @@ assign uop_count = (is_reg | is_imm | is_sta & is_idx & ~is_push) ? 2'b0 : ( is_
 assign restore_int = is_rti & issued;
 
 assign feed_ack = issued;
-assign br_taken = is_predicated_op & is_taken_pred;
+assign br_taken = is_predicated_op & is_taken_pred | is_bsr;
 assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred;
 assign pc_inv = is_pc_dest & ~is_addcc_imm;
 assign sel_pc = is_reg & (field_reg_1 == 3'b011) | is_sta & (field_reg_0 == 3'b011);

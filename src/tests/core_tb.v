@@ -31,15 +31,15 @@ always @(negedge clk) begin
                 d_bank[ { d_addr[15:1], 1'b0 } ] <= d_data_out[ 15:8 ];
                 d_bank[ { d_addr[15:1], 1'b1 } ] <= d_data_out[ 7:0 ];
             end else begin
-                d_bank[ d_addr[15:1] ] <= d_data_out[ 7:0 ];
+                d_bank[ d_addr ] <= d_data_out[ 7:0 ];
             end
         end else begin
             if ( d_be0 & d_be1 ) begin
                 d_data_in[15:8] <= d_bank[ { d_addr[15:1], 1'b0 } ];
                 d_data_in[7:0] <= d_bank[ { d_addr[15:1], 1'b1 } ];
             end else begin
-                d_data_in[7:0] <= d_bank[ d_addr ];
                 d_data_in[15:8] <= 8'b0;
+                d_data_in[7:0] <= d_bank[ d_addr ];
             end
         end
     end

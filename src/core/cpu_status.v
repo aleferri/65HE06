@@ -87,18 +87,22 @@ reg was_irq;
 reg was_rst;
 reg was_nmi;
 reg was_brk;
+reg was_bsr;
+reg was_jsr;
 
 always @(posedge clk) begin
     was_irq <= ( proc_status === 3'b000 ) ? irq : was_irq;
     was_rst <= ( proc_status === 3'b000 ) ? (rst | ~is_powerup) : was_rst;
     was_nmi <= ( proc_status === 3'b000 ) ? nmi : was_nmi;
     was_brk <= ( proc_status === 3'b000 ) ? brk : was_brk;
+    was_bsr <= ( proc_status === 3'b000 ) ? bsr : was_bsr;
+    was_jsr <= ( proc_status === 3'b000 ) ? jsr : was_jsr;
 end
 
-assign int_ir = (next_proc_status === 3'b001) ? 16'b10000_011_0010_00_10 : { 8'b00010_011, ir_low };
-assign int_k = (next_proc_status === 3'b001) ? 16'h0001 : { INT_VEC_BASE, was_rst | was_irq, was_nmi | was_irq };
+assign int_ir = (next_proc_status === 3'b001) ? 16'b10000_011_0010_00_10 : { 8'b00010_011, (was_jsr ? ir_low : 8'b0010_1100) };
+assign int_k = (next_proc_status === 3'b001) ? 16'h0002 : { INT_VEC_BASE, was_rst | was_irq, was_nmi | was_irq };
 assign int_ack = ( next_proc_status === 3'b001 );
-assign replace_ir = ( proc_status === 3'b001 ) | ( proc_status === 3'b010 );
+assign replace_ir = ( proc_status === 3'b001 ) | ( proc_status === 3'b010 ) & ~was_bsr;
 assign replace_k = ( proc_status === 3'b001 ) | ( proc_status === 3'b010 ) & ( was_rst | was_irq | was_nmi | was_brk );
 assign hold_fetch = ( next_proc_status === 3'b001 ) | (next_proc_status === 3'b010);
 assign hold_decode = ( next_proc_status === 3'b001 ) | (next_proc_status === 3'b010);

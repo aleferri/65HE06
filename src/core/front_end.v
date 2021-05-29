@@ -76,6 +76,11 @@ fetch_unit fu(
     .ir_valid ( fu_ready_ir )
 );
 
+wire is_bsr;
+wire is_jsr;
+wire is_stp;
+wire is_wai;
+
 decode_unit decode(
     .clk ( clk ),
     .a_rst ( a_rst ),
@@ -91,6 +96,10 @@ decode_unit decode(
     .pc_inv ( de_pc_inv ),
     .pc_inc ( de_pc_inc ),
     .restore_int ( int_restore ),
+    .is_stp ( is_stp ),
+    .is_wai ( is_wai ),
+    .is_bsr ( is_bsr ),
+    .is_jsr ( is_jsr ),
     .uop_0 ( ex_uop_0 ),
     .uop_1 ( ex_uop_1 ),
     .uop_2 ( ex_uop_2 ),

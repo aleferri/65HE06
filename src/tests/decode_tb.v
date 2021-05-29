@@ -22,6 +22,11 @@ reg rst;
 reg[15:0] code[0:15];
 reg[3:0] next;
 
+wire is_bsr;
+wire is_jsr;
+wire is_stp;
+wire is_wai;
+
 decode_unit id(
     .clk ( clk ),
     .a_rst ( rst ),
@@ -37,6 +42,10 @@ decode_unit id(
     .pc_inv ( pc_inv ),
     .pc_inc ( pc_inc ),
     .restore_int ( restore_int ),
+    .is_bsr ( is_bsr ),
+    .is_jsr ( is_jsr ),
+    .is_stp ( is_stp ),
+    .is_wai ( is_wai ),
     .uop_0 ( uop_0 ),
     .uop_1 ( uop_1 ),
     .uop_2 ( uop_2 ),

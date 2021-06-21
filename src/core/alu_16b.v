@@ -1,83 +1,72 @@
-
 module alu_16b(
     input   wire        clk,
     input   wire        carry_mask,
     input   wire[3:0]   alu_f,
-    input   wire[2:0]   a_idx,
-    input   wire[2:0]   b_idx,
-    input   wire[2:0]   d_idx,
-    input   wire        wr_reg,
-    input   wire        wr_flags,
-    input   wire[15:0]  t16,
-    input   wire        sel_inp,
-    input   wire        wr_back_addr,
-    output  wire[15:0]  flags,
-    output  wire[15:0]  d_val,
-    output  wire[15:0]  mar_val,
-    output  wire[15:0]  mem_data,
-    output  wire        wr_pc
+    
+    //Reg File interface
+    input   wire[15:0]  rf_a,
+    input   wire[15:0]  rf_b,
+    output  wire[15:0]  rf_d,
+    output  wire[15:0]  rf_sf,
+    
+    //Scheduler interface
+    input   wire[15:0]  sched_t16,
+    input   wire        sched_bypass_b
+    
+    //Load Store Interface
+    output  wire[15:0]  lsu_adr,
+    output  wire[15:0]  lsu_payload
 );
-
-reg[15:0] bank_a[0:7];
-reg[15:0] bank_b[0:7];
-
-reg[15:0] sf;
 
 wire is_sub = ~alu_f[3] & ~alu_f[2] & alu_f[1] & ~alu_f[0];
 wire is_dep = ~alu_f[3] & ~alu_f[2] & alu_f[1] & alu_f[0];
 wire has_v = ~alu_f[3] & ~alu_f[2];
 
-wire[2:0] wr_reg_idx = wr_back_addr ? a_idx : d_idx;
-
 reg[15:0] result_val;
-reg[15:0] result_flags;
 reg[15:0] address_val;
-reg[15:0] a_val;
-reg[15:0] b_val;
-reg[15:0] sel_val;
-reg[15:0] not_val;
 reg carry;
 reg overflow;
 reg zero;
 reg negative;
-reg zero_before;
-reg carry_in;
-reg not_carry_in;
 reg acquired;
 
-always @(a_idx, b_idx, sel_inp, alu_f, carry_mask, sf, has_v, is_sub, is_dep) begin
-    a_val = bank_a[a_idx];
-    b_val = bank_b[b_idx];
-    sel_val = sel_inp ? b_val : t16;
-    not_val = ~sel_val;
-    zero_before = b_val == 16'b0;
-    carry_in = sf[0] & carry_mask;
-    not_carry_in = ~carry_in;
+wire carry_in = sf[0] & carry_mask;
+wire not_carry_in = ~carry_in;
+
+wire[15:0] alu_a = rf_a;
+wire[15:0] alu_b = sched_bypass_b ? sched_t16 : rf_b;
+wire[15:0] not_b = ~alu_b;
+wire[15:0] agu_a = rf_a;
+wire[15:0] agu_b = sched_t16;
+
+wire was_zero = ~(alu_b == 16'b0);
+
+always @(*) begin
     case(alu_f)
     //  ADD/ADC
-    4'b0000: { carry, result_val } = a_val + sel_val + carry_in;
+    4'b0000: { carry, result_val } = alu_a + alu_b + carry_in;
     //  INC
-    4'b0001: { carry, result_val } = b_val + 1'b1;
+    4'b0001: { carry, result_val } = alu_b + 1'b1;
     //  SUB/SBC
-    4'b0010: { carry, result_val } = a_val + not_val + not_carry_in;
+    4'b0010: { carry, result_val } = alu_a + not_b + not_carry_in;
     //  DEP
-    4'b0011: { carry, result_val } = b_val - ~zero_before;
+    4'b0011: { carry, result_val } = alu_b - was_zero;
     //  AND
-    4'b0100: { carry, result_val } = { 1'b0, a_val & sel_val };
+    4'b0100: { carry, result_val } = { 1'b0, alu_a & alu_b };
     //  ORA
-    4'b0101: { carry, result_val } = { 1'b0, a_val | sel_val };
+    4'b0101: { carry, result_val } = { 1'b0, alu_a | alu_b };
     //  EOR
-    4'b0110: { carry, result_val } = { 1'b0, a_val ^ sel_val };
+    4'b0110: { carry, result_val } = { 1'b0, alu_a ^ alu_b };
     //  LDA
-    4'b0111: { carry, result_val } = { 1'b0, sel_val };
+    4'b0111: { carry, result_val } = { 1'b0, alu_b };
     //  EXT (Sign Ext 8 -> 16)
-    4'b1000: { carry, result_val } = { 1'b0, sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val[7], sel_val };
+    4'b1000: { carry, result_val } = { 1'b0, alu_b[7], alu_b[7], alu_b[7], alu_b[7], alu_b[7], alu_b[7], alu_b[7], alu_b[7], alu_b };
     //  BSW (Bytes SWap)
-    4'b1001: { carry, result_val } = { 1'b0, sel_val[3:0], sel_val[7:4] };
+    4'b1001: { carry, result_val } = { 1'b0, alu_b[3:0], alu_b[7:4] };
     //  LSR/ROR
-    4'b1010: { result_val, carry } = { carry_in, sel_val };
+    4'b1010: { result_val, carry } = { carry_in, alu_b };
     //  ASL/ROL
-    4'b1011: { carry, result_val } = { sel_val, carry_in };
+    4'b1011: { carry, result_val } = { alu_b, carry_in };
     //  LDZ
     4'b1100: { result_val, carry } = 17'b0;
     //  LDZ
@@ -87,35 +76,16 @@ always @(a_idx, b_idx, sel_inp, alu_f, carry_mask, sf, has_v, is_sub, is_dep) be
     //  LDZ
     4'b1111: { result_val, carry } = 17'b0;
     endcase
-    overflow = has_v & ( result_val[15] & ~a_val[15] & ((~sel_val[15]) ^ is_sub) | ~result_val[15] & a_val[15] & (sel_val[15] ^ is_sub) );
+    overflow = has_v & ( result_val[15] & ~alu_a[15] & ( ~alu_b[15] ^ is_sub) | ~result_val[15] & alu_a[15] & (alu_b[15] ^ is_sub) );
     zero = ( result_val == 0 );
     negative = result_val[15];
     acquired = ~zero_before & is_dep;
-    result_flags = { acquired, negative, zero, overflow, carry };
-    address_val = a_val + t16;
-end
-
-always @(posedge clk) begin
-    if ( wr_reg ) begin
-        bank_b[ wr_reg_idx ] = result_val;
-        bank_a[ wr_reg_idx ] = result_val;
-    end
-end
-
-always @(posedge clk) begin
-    if ( wr_flags ) begin
-        sf <= { 12'b0, result_flags };
-    end else if ( (d_idx == 3'b010) & wr_reg ) begin
-        sf <= result_val;
-    end else begin
-        sf <= sf;
-    end
+    address_val = agu_a + agu_b;
 end
     
-assign flags = sf;
-assign d_val = result_val;
-assign mem_data = b_val;
-assign wr_pc = (d_idx == 3'b011) & wr_reg;
-assign mar_val = address_val;
+assign rf_sf = { 11'b0, acquired, negative, zero, overflow, carry };
+assign rf_d = result_val;
+assign lsu_payload = result_val;
+assign lsu_adr = address_val;
 
 endmodule

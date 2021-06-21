@@ -1,13 +1,14 @@
 module lsu_16b(
     input   wire        clk,
     input   wire        a_rst,
+    
     input   wire[15:0]  rq_addr,
-    input   wire        rq_wr_addr,
     input   wire[15:0]  rq_data,
     input   wire        rq_width,
     input   wire        rq_cmd,
     input   wire        rq_t_id,
     input   wire        rq_start,
+    
     input   wire        mem_rdy,
     output  wire[15:0]  mem_addr,
     output  wire[15:0]  mem_data,
@@ -15,6 +16,7 @@ module lsu_16b(
     output  wire        be0,
     output  wire        be1,
     output  wire        mem_bus_assert,
+    
     output  wire        t_id,
     output  wire        rq_ack
 );
@@ -39,7 +41,7 @@ always @(posedge clk or negedge a_rst) begin
 end
 
 always @(posedge clk) begin
-    address <= (rq_ack & rq_wr_addr) ? rq_addr : address;
+    address <= rq_ack ? rq_addr : address;
     data <= rq_ack ? rq_data : data;
     width <= rq_ack ? rq_width : width;
     command <= rq_ack ? rq_cmd : command;

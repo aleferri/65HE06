@@ -1,5 +1,5 @@
 
-module lsu_buffer(
+module address_buffer(
     input   wire        clk,
     
     //ALU Interface
@@ -8,7 +8,10 @@ module lsu_buffer(
     //Scheduler Interface
     input   wire[1:0]   sched_rd,
     input   wire        sched_slot,
-    input   wire        sched_wr,
+    
+    //R Station Interface
+    input   wire[15:0]  r_data,     //Data from RS, either K16 or RMW address
+    input   wire        r_wr,
     
     //LSU Interface
     output  wire[15:0]  lsu_adr
@@ -29,8 +32,8 @@ reg[15:0] a;
 always @(posedge clk) begin
     a <= sched_rd[1] ? alu_adr : buffer[ sched_rd[0] ];
     
-    if ( sched_wr ) begin
-        buffer[ sched_slot ] <= alu_adr;
+    if ( r_wr ) begin
+        buffer[ sched_slot ] <= r_data;
     end
 end
 

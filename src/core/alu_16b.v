@@ -11,7 +11,7 @@ module alu_16b(
     
     //Scheduler interface
     input   wire[15:0]  sched_t16,
-    input   wire        sched_bypass_b
+    input   wire        sched_bypass_b,
     
     //Load Store Interface
     output  wire[15:0]  lsu_adr,

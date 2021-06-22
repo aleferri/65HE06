@@ -33,6 +33,7 @@ module station(
     output  wire        r_save_flags,
     output  wire        r_st_mem,
     output  wire        r_ld_mem,
+    output  wire        r_mem_width,
     output  wire        r_bypass_b,
     output  wire        r_lock_loads,       //lock loads
     output  wire[3:0]   r_lock_reg_wr,      //lock register from being read
@@ -93,7 +94,7 @@ wire is_status_store = iop_status == ST_STORE;
  * -----------------------------------
  * 04: mem_is_rmw           (STORE step)
  * 03: mem_width            (LOAD/STORE step)
- * 02: reserved
+ * 02: mar_write            (LOAD/STORE step)
  * 01: reserved
  * 00: reserved
  * -----------------------------------
@@ -127,23 +128,39 @@ always @(posedge clk) begin
 end
 
 wire is_alu_store = is_status_alu & iop[22];
+wire is_rmw_index = is_status_load_1 & iop[28];
 
+//This signal is already gated by sched_ack
 assign id_feed = is_status_complete | is_status_alu & sched_ack;
 
+//These signals are expected to be gated outside the station
 assign ab_data = iop[4] ? iop_last_addr : iop_k16;
 assign ab_wr = is_status_load_1 & iop[4] | is_status_load_1 & iop[30];
 
+//These signals are repeatable
 assign r_pc = iop_pc;
 assign r_k16 = iop[29] ? 16'b0 : iop_k16;
-assign r_a_adr = is_status_load_0 ? { 1'b0, iop[25:24] } : is_status_load_1 ? { 1'b0, iop[27:26] } : iop[15:13];
+
+assign r_a_adr = is_status_load_0 ? { 1'b1, iop[25:24] } : is_status_load_1 ? { 1'b1, iop[27:26] } : iop[15:13];
 assign r_b_adr = iop[12:10];
-assign r_d_adr = ( is_status_load_0 | is_status_load_1 | is_alu_store ) ? { 3'b100, iop[3] & ~is_status_load_0 } : iop[9:6];
+
+//Quite complicated. D top bit (means "do the write") is 1 if doing pre-inc or post-dec during load or if ALU write to register. 
+//Lower part is either the address of the index or the register specified by the instruction.
+assign r_d_adr = { is_status_alu & iop[9] | is_rmw_index, is_rmw_index | iop[8], is_rmw_index ? iop[27:26] : iop[7:6] };
+
 assign r_fn = ( is_status_load_0 | is_status_load_1 ) ? 4'b0111 : iop[19:16];
-assign r_mask_carry = is_status_alu & iop[20];
+
+assign r_mask_carry = ~(~is_status_alu | iop[20]);
+
 assign r_save_flags = is_status_alu & iop[21];
+
 assign r_st_mem = is_alu_store;
 assign r_ld_mem = is_status_load_0 | is_status_load_1;
+assign r_mem_width = iop[3] & ~is_status_load_0;
+
 assign r_bypass_b = iop[5];
+
+//Conflicts are implicitly handled for scheduled uOps operands (a, b & d), additional locks are required to specify the terminals reads and writes of the instruction
 assign r_lock_loads = iop[22];
 assign r_lock_reg_wr = iop[9:6];
 assign r_lock_reg_rd_0 = iop[15:13];
@@ -155,9 +172,9 @@ always @(posedge clk or posedge a_rst) begin
     end else begin
         case (iop_status)
         3'b000: iop_status <= id_ack ? id_iop_init : iop_status;
-        3'b001: iop_status <= { lsu_rdy, 2'b01 };
-        3'b010: iop_status <= { lsu_rdy, 2'b10 };
-        3'b011: iop_status <= { lsu_rdy, 2'b11 };
+        3'b001: iop_status <= { lsu_wb, 2'b01 };
+        3'b010: iop_status <= { lsu_wb, 2'b10 };
+        3'b011: iop_status <= { lsu_wb, 2'b11 };
         3'b100: iop_status <= sched_ack ? 3'b001 : 3'b100;
         3'b101: iop_status <= sched_ack ? 3'b010 : 3'b101;
         3'b110: iop_status <= sched_ack ? { iop[22], iop[22], iop[22] } : 3'b110;

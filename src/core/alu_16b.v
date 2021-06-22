@@ -17,6 +17,13 @@ module alu_16b(
     output  wire[15:0]  lsu_adr,
     output  wire[15:0]  lsu_payload
 );
+/**
+ * This reworked ALU is stateless
+ * - it generates address from rf_a and t16
+ * - it generates result from rf_a and (t16 or rf_b), the result is also the payload for LSU if a memory transfer is requested
+ * 
+ **/
+
 
 wire is_sub = ~alu_f[3] & ~alu_f[2] & alu_f[1] & ~alu_f[0];
 wire is_dep = ~alu_f[3] & ~alu_f[2] & alu_f[1] & alu_f[0];

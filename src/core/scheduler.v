@@ -1,38 +1,59 @@
 module scheduler(
-    input   wire[19:0]  uop_next_a,
-    input   wire[19:0]  uop_next_b,
-    input   wire        uop_is_last_a,
-    input   wire        uop_is_last_b,
-    input   wire        is_a_valid,
-    input   wire        is_b_valid,
-    input   wire[19:0]  uop_last_a,
-    input   wire[19:0]  uop_last_b,
-    input   wire        main_sched,
-    input   wire        ex_doing_mem,
-    output  wire        next_sched,
-    output  wire        next_main,
-    output  wire[19:0]  uop_next
+
+    // R Station A interface
+    input   wire        ra_lock_loads,       //lock loads
+    input   wire[3:0]   ra_lock_reg_wr,      //lock register from being read
+    input   wire[2:0]   ra_lock_reg_rd_0,    //lock register from being written
+    input   wire[2:0]   ra_lock_reg_rd_1,    //lock register from being written
+    input   wire[2:0]   ra_lock_reg_rd_2,    //lock register from being written
+    
+    input   wire[2:0]   ra_a_adr,
+    input   wire[2:0]   ra_b_adr,
+    input   wire[3:0]   ra_d_adr,
+    input   wire        ra_ld_mem,
+    input   wire        ra_st_mem,
+    
+    input   wire        ra_ready,
+    input   wire        ra_order,
+    input   wire        ra_will_complete,
+    
+    // R Station B interface
+    input   wire        rb_lock_loads,       //lock loads
+    input   wire[3:0]   rb_lock_reg_wr,      //lock register from being read
+    input   wire[2:0]   rb_lock_reg_rd_0,    //lock register from being written
+    input   wire[2:0]   rb_lock_reg_rd_1,    //lock register from being written
+    input   wire[2:0]   rb_lock_reg_rd_2,    //lock register from being written
+    
+    input   wire[2:0]   rb_a_adr,
+    input   wire[2:0]   rb_b_adr,
+    input   wire[3:0]   rb_d_adr,
+    input   wire        rb_ld_mem,
+    input   wire        rb_st_mem,
+    
+    input   wire        rb_ready,
+    input   wire        rb_order,
+    input   wire        rb_will_complete,
+    
+    // Scheduler Interface
+    output  wire        sched_next,
+    output  wire        sched_order_ra,
+    output  wire        sched_order_rb
 );
 
-wire is_b_store = uop_last_b[13];
-wire is_a_store = uop_last_a[13];
-wire is_next_a_store = uop_next_a[13];
-wire is_next_b_store = uop_next_b[13];
-wire dest_reg_a = uop_last_a[11:8];
-wire dest_reg_b = uop_last_b[11:8];
-wire source_reg_0_a = { 1'b0, uop_next_a[2:0] };
-wire source_reg_1_a = { 1'b0, uop_next_a[5:3] };
-wire source_reg_0_b = { 1'b0, uop_next_b[2:0] };
-wire source_reg_1_b = { 1'b0, uop_next_b[5:3] };
+wire ra_no_conflict_mem = ~ra_ld_mem | ra_ld_mem & ~rb_lock_loads & ~ra_st_mem;
+wire ra_no_conflict_d = ~ra_d_adr[3] | ra_d_adr[3] & ( ra_d_adr[2:0] != rb_lock_reg_rd_0 ) & ( ra_d_adr[2:0] != rb_lock_reg_rd_1 ) & ( ra_d_adr[2:0] != rb_lock_reg_rd_2 );
+wire ra_no_conflict_a = (ra_a_adr != rb_lock_wr);
+wire ra_no_conflict_b = (ra_b_adr != rb_lock_wr);
+wire ra_sched = ~ra_order | ra_order & ra_ready & ~rb_ready & ra_no_conflict_mem & ra_no_conflict_d & ra_no_conflict_a & ra_no_conflict_b;
 
-wire is_a_rdy_if_next = ~is_b_store & ~is_next_a_store & ~uop_is_last_a & (source_reg_0_a != dest_reg_b) & (source_reg_1_a != dest_reg_b);
-wire is_b_rdy_if_next = ~is_a_store & ~is_next_b_store & ~uop_is_last_b & (source_reg_0_b != dest_reg_a) & (source_reg_1_b != dest_reg_a);
+wire rb_no_conflict_mem = ~rb_ld_mem | rb_ld_mem & ~ra_lock_loads & ~rb_st_mem;
+wire rb_no_conflict_d = ~rb_d_adr[3] | rb_d_adr[3] & ( rb_d_adr[2:0] != ra_lock_reg_rd_0 ) & ( rb_d_adr[2:0] != ra_lock_reg_rd_1 ) & ( rb_d_adr[2:0] != ra_lock_reg_rd_2 );
+wire rb_no_conflict_a = (rb_a_adr != ra_lock_wr);
+wire rb_no_conflict_b = (rb_b_adr != ra_lock_wr);
+wire rb_sched = ~rb_order | rb_order & rb_ready & ~ra_ready & rb_no_conflict_mem & rb_no_conflict_d & rb_no_conflict_a & rb_no_conflict_b;
 
-wire is_a_main = ~main_sched;
-wire is_b_main = main_sched;
-
-assign next_sched = main_sched ^ ( ex_doing_mem & is_a_rdy_if_next & is_b_main | ex_doing_mem & is_b_rdy_if_next & is_a_main );
-assign next_main = main_sched ^ ( is_a_main & uop_is_last_a & ~next_sched & is_b_valid | is_b_main & uop_is_last_b & next_sched & is_a_valid );
-assign uop_next = next_sched ? uop_next_b : uop_next_a;
+assign sched_next = ~ra_sched | rb_sched;
+assign sched_order_ra = ra_order ^ ( ra_will_complete & ra_sched | rb_will_complete & rb_sched );
+assign sched_order_rb = rb_order ^ ( ra_will_complete & ra_sched | rb_will_complete & rb_sched );
 
 endmodule

@@ -5,6 +5,7 @@ module r_station(
     input   wire        id_feed_ack,
     output  wire        id_feed_req,
     
+    input   wire[15:0]  id_pc,
     input   wire[19:0]  id_uop_0,
     input   wire[19:0]  id_uop_1,
     input   wire[19:0]  id_uop_2,
@@ -18,7 +19,8 @@ module r_station(
     input   wire[15:0]  mem_data_in,
     input   wire        mem_data_wr,
     input   wire        ex_sched_ack,
-    output  wire[15:0]  ex_data_out
+    output  wire[15:0]  ex_data_out,
+    output  wire[15:0]  ex_pc
 );
 parameter NOP = 20'b0000_0000_1111_00_000_000;
 
@@ -26,6 +28,7 @@ reg[19:0] uop_0;
 reg[19:0] uop_1;
 reg[19:0] uop_2;
 reg[15:0] temp;
+reg[15:0] pc;
 reg[1:0] uop_count;
 reg valid;
 
@@ -66,17 +69,16 @@ always @(posedge clk, negedge a_rst) begin
     end
 end
 
-always @(posedge clk, negedge a_rst) begin
-    if ( ~a_rst ) begin
-        temp <= 16'b0;
+always @(posedge clk) begin
+    if ((uop_count == 2'b0) & id_feed_ack) begin
+        temp <= id_k16;
+        pc <= id_pc;
+    end else if (mem_data_wr) begin
+        temp <= mem_data_in;
+        pc <= pc;
     end else begin
-        if ((uop_count == 2'b0) & id_feed_ack) begin
-            temp <= id_k16;
-        end else if (mem_data_wr) begin
-            temp <= mem_data_in;
-        end else begin
-            temp <= temp;
-        end
+        temp <= temp;
+        pc <= pc;
     end
 end
 
@@ -96,6 +98,8 @@ end
 
 assign ex_uop_next = next;
 assign ex_data_out = mem_data_wr ? mem_data_in : temp;
+
+assign ex_pc = pc;
 
 assign ex_is_valid = valid;
 

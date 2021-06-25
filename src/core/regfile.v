@@ -13,11 +13,17 @@ module regfile(
     output  wire[15:0]  alu_a,
     output  wire[15:0]  alu_b,
     
+    //ALU rmw interface
+    input   wire[15:0]  rmw_flags,
+    input   wire        rmw_w_flags,
+    
     //Control Interface
     input   wire        dest_r_wr,
     input   wire[1:0]   dest_r_addr,
     input   wire        dest_w_flags,
-    output  wire        abort
+    
+    //Both ALU & ID
+    output  wire[15:0]  flags
 );
 
 wire conflict_a = (r_a_addr == dest_r_addr) & dest_r_wr;
@@ -33,16 +39,14 @@ reg[15:0] a;
 reg[15:0] b;
 
 reg[15:0] sf;
-reg locked_flags;
 
 always @(posedge clk) begin
-    if ( dest_w_flags ) begin
-        sf <= alu_flags;
-        locked_flags <= 1'b1;
-    end else begin
-        locked_flags <= ~dest_r_wr;
-        sf <= sf;
-    end
+    case ( { rmw_w_flags, dest_w_flags } )
+    2'b00: sf <= sf;
+    2'b01: sf <= alu_flags;
+    2'b10: sf <= rmw_flags;
+    2'b11: sf <= rmw_flags;
+    endcase
 end
 
 always @(posedge clk) begin
@@ -51,14 +55,11 @@ always @(posedge clk) begin
     if ( dest_r_wr ) begin
         bank_a[ dest_r_addr ] <= alu_r;
         bank_b[ dest_r_addr ] <= alu_r;
-    end else begin
-        bank_a[ 3'b010 ] <= sf;
-        bank_b[ 3'b010 ] <= sf;
     end
 end
 
-assign abort = locked_flags & ( (r_a_addr == 3'b010) | ( r_b_addr == 3'b010 ) );
 assign alu_a = a;
 assign alu_b = b;
+assign flags = sf;
 
 endmodule

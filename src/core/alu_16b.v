@@ -1,5 +1,4 @@
 module alu_16b(
-    input   wire        clk,
     input   wire        carry_mask,
     input   wire[3:0]   alu_f,
     
@@ -11,7 +10,9 @@ module alu_16b(
     
     //Scheduler interface
     input   wire[15:0]  sched_t16,
+    input   wire[15:0]  sched_agu_t16,
     input   wire        sched_bypass_b,
+    input   wire        sched_zero_index,
     
     //Load Store Interface
     output  wire[15:0]  lsu_adr,
@@ -19,8 +20,9 @@ module alu_16b(
 );
 /**
  * This reworked ALU is stateless
- * - it generates address from rf_a and t16
- * - it generates result from rf_a and (t16 or rf_b), the result is also the payload for LSU if a memory transfer is requested
+ * - it generates address from rf_a and agu_t16
+ * - it generates result from rf_a and (t16 or rf_b)
+ * - rf is also the payload for LSU if a memory transfer is requested
  * 
  **/
 
@@ -43,8 +45,8 @@ wire not_carry_in = ~carry_in;
 wire[15:0] alu_a = rf_a;
 wire[15:0] alu_b = sched_bypass_b ? sched_t16 : rf_b;
 wire[15:0] not_b = ~alu_b;
-wire[15:0] agu_a = rf_a;
-wire[15:0] agu_b = sched_t16;
+wire[15:0] agu_a = sched_zero_index ? 16'b0 : rf_a;
+wire[15:0] agu_b = sched_agu_t16;
 
 wire was_zero = ~(alu_b == 16'b0);
 
@@ -92,7 +94,7 @@ end
     
 assign rf_sf = { 11'b0, acquired, negative, zero, overflow, carry };
 assign rf_d = result_val;
-assign lsu_payload = result_val;
+assign lsu_payload = rf_b;
 assign lsu_adr = address_val;
 
 endmodule

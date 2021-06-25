@@ -11,10 +11,6 @@ module station(
     input   wire[15:0]  id_k16,
     output  wire        id_feed,
     
-    //Address Buffer Interface
-    output  wire[15:0]  ab_data,
-    output  wire        ab_wr,
-    
     //LSU Interface
     input   wire[15:0]  lsu_data,
     input   wire        lsu_wb,
@@ -23,14 +19,18 @@ module station(
     input   wire[15:0]  alu_addr,
     
     //Sched Interface
+    output  wire        r_ready,
+    output  wire        r_will_complete,
     output  wire[15:0]  r_pc,
     output  wire[15:0]  r_k16,
+    output  wire[15:0]  r_agu_k16,
     output  wire[2:0]   r_a_adr,
     output  wire[2:0]   r_b_adr,
     output  wire[3:0]   r_d_adr,
     output  wire[3:0]   r_fn,
     output  wire        r_mask_carry,
     output  wire        r_save_flags,
+    output  wire        r_forward_to_rmw,
     output  wire        r_st_mem,
     output  wire        r_ld_mem,
     output  wire        r_mem_width,
@@ -39,8 +39,8 @@ module station(
     output  wire[3:0]   r_lock_reg_wr,      //lock register from being read
     output  wire[2:0]   r_lock_reg_rd_0,    //lock register from being written
     output  wire[2:0]   r_lock_reg_rd_1,    //lock register from being written
-    input   wire        sched_ack,
-    input   wire        sched_ld_addr
+    output  wire[2:0]   r_lock_reg_rd_2,    //lock register from being written
+    input   wire        sched_ack
 );
 parameter ST_COMPLETE = 3'b000;
 parameter ST_WAIT_1   = 3'b001;
@@ -99,8 +99,8 @@ wire is_status_store = iop_status == ST_STORE;
  * 00: reserved
  * -----------------------------------
  */
- 
-// State machine implementation
+
+//Flip Flops
 
 reg[31:0] iop;
 reg[15:0] iop_pc;
@@ -121,40 +121,56 @@ always @(posedge clk) begin
     endcase
 end
 
-reg[15:0] iop_last_addr;
-
-always @(posedge clk) begin
-    iop_last_addr = sched_ld_addr ? alu_addr : sched_ld_addr;
-end
-
-wire is_alu_store = is_status_alu & iop[22];
-wire is_rmw_index = is_status_load_1 & iop[28];
+/**
+ * LOAD_0:      ALU_A = index; ALU_B = x    ; ALU_FN = xxxx; WR_ADDR = 0; ALU_MASK = 0; ALU_SF = 0; ST_MEM = 0        ; LD_MEM = 1 ; ALU_DEST = x
+ * LOAD_1:      ALU_A = index; ALU_B = x    ; ALU_FN = ADD ; WR_ADDR = 0; ALU_MASK = 0; ALU_SF = 0; ST_MEM = 0        ; LD_MEM = 1 ; ALU_DEST = index | none
+ * ALU_0:       ALU_A = A    ; ALU_B = k | B; ALU_FN = FN  ; WR_ADDR = 1; ALU_MASK = m; ALU_SF = s; ST_MEM = 0        ; LD_MEM = 0 ; ALU_DEST = D | none
+ * ALU_1:       ALU_A = index; ALU_B = k    ; ALU_FN = ADD ; WR_ADDR = 0; ALU_MASK = 0; ALU_SF = 0; ST_MEM = 1        ; LD_MEM = 0 ; ALU_DEST = index
+ *
+ * Steps
+ * ALU_IMM : ALU_0
+ * ALU_REG : ALU_0
+ * ALU_IDX : LOAD_1 -> WAIT_1 -> ALU_0
+ * ALU_IDX+: LOAD_1 -> WAIT_1 -> ALU_0                      ; LOAD_1 writeback A + k
+ * STR_IDX-: ALU_1                                          ; ALU_1 writeback A + k
+ * ALU_IND : LOAD_0 -> WAIT_0 -> LOAD_1 -> WAIT_1 -> ALU_0
+ * RMW_IDX : LOAD_1 + RMW_START
+ * RMW_IND : LOAD_0 -> WAIT_0 -> LOAD_1 + RMW_START
+ * BSR_IMM : ALU_0 -> ALU_1
+ * JSR_REG : ALU_0 -> ALU_1
+ * JSR_IDX : LOAD_1 -> WAIT_1 -> ALU_0  -> ALU_1
+ * JSR_IND : LOAD_0 -> WAIT_0 -> LOAD_1 -> WAIT_1 -> ALU_0 -> ALU_1
+ */
+ 
+// Combinatorial
+wire offload_rmw = is_status_load_1 & iop[4];
+wire write_back_alu = is_status_load_1 & iop[28] | is_status_store & iop[28];
 
 //This signal is already gated by sched_ack
 assign id_feed = is_status_complete | is_status_alu & sched_ack;
 
 //These signals are expected to be gated outside the station
-assign ab_data = iop[4] ? iop_last_addr : iop_k16;
-assign ab_wr = is_status_load_1 & iop[4] | is_status_load_1 & iop[30];
 
 //These signals are repeatable
 assign r_pc = iop_pc;
-assign r_k16 = iop[29] ? 16'b0 : iop_k16;
+assign r_k16 = iop_k16;
+assign r_agu_k16 = ( is_status_store | iop[29] ) ? iop_k16 : 16'b0;
 
-assign r_a_adr = is_status_load_0 ? { 1'b1, iop[25:24] } : is_status_load_1 ? { 1'b1, iop[27:26] } : iop[15:13];
+assign r_a_adr = is_status_load_0 ? { 1'b1, iop[25:24] } : ( is_status_load_1 | is_status_store ) ? { 1'b1, iop[27:26] } : iop[15:13];
 assign r_b_adr = iop[12:10];
 
 //Quite complicated. D top bit (means "do the write") is 1 if doing pre-inc or post-dec during load or if ALU write to register. 
 //Lower part is either the address of the index or the register specified by the instruction.
-assign r_d_adr = { is_status_alu & iop[9] | is_rmw_index, is_rmw_index | iop[8], is_rmw_index ? iop[27:26] : iop[7:6] };
+assign r_d_adr = { is_status_alu & iop[9] | write_back_alu, write_back_alu | iop[8], write_back_alu ? iop[27:26] : iop[7:6] };
 
-assign r_fn = ( is_status_load_0 | is_status_load_1 ) ? 4'b0111 : iop[19:16];
+assign r_fn = ( is_status_load_0 | is_status_load_1 | is_status_store & ~iop[4]) ? 4'b0000 : iop[19:16];
 
 assign r_mask_carry = ~(~is_status_alu | iop[20]);
 
-assign r_save_flags = is_status_alu & iop[21];
+assign r_save_flags = ( is_status_alu | offload_rmw ) & iop[21];
+assign r_forward_to_rmw = offload_rmw;
 
-assign r_st_mem = is_alu_store;
+assign r_st_mem = is_status_store;
 assign r_ld_mem = is_status_load_0 | is_status_load_1;
 assign r_mem_width = iop[3] & ~is_status_load_0;
 
@@ -165,20 +181,41 @@ assign r_lock_loads = iop[22];
 assign r_lock_reg_wr = iop[9:6];
 assign r_lock_reg_rd_0 = iop[15:13];
 assign r_lock_reg_rd_1 = iop[12:10];
+assign r_lock_reg_rd_2 = { 1'b1, iop[27:26] };
+
+assign r_ready = iop_status[2];
+
+// State machine implementation
+reg[2:0] next_status;
+
+always @(*) begin
+    case (iop_status)
+        3'b000: next_status = id_iop_init;
+        3'b001: next_status = { lsu_wb, 2'b01 };
+        3'b010: next_status = { lsu_wb, 2'b10 };
+        3'b011: next_status = 3'b111;
+        3'b100: next_status = 3'b001;
+        3'b101: next_status = { 1'b0, ~iop[28], 1'b0 };
+        3'b110: next_status = { iop[23], iop[23], iop[23] };
+        3'b111: next_status = 3'b000;
+    endcase
+end
+
+assign r_will_complete = ( iop_status[0] | iop_status[1] | iop_status[2] ) & ~( next_status[0] | next_status[1] | next_status[2] ); 
 
 always @(posedge clk or posedge a_rst) begin
     if ( a_rst ) begin
         iop_status = 3'b000;
     end else begin
         case (iop_status)
-        3'b000: iop_status <= id_ack ? id_iop_init : iop_status;
-        3'b001: iop_status <= { lsu_wb, 2'b01 };
-        3'b010: iop_status <= { lsu_wb, 2'b10 };
-        3'b011: iop_status <= { lsu_wb, 2'b11 };
-        3'b100: iop_status <= sched_ack ? 3'b001 : 3'b100;
-        3'b101: iop_status <= sched_ack ? 3'b010 : 3'b101;
-        3'b110: iop_status <= sched_ack ? { iop[22], iop[22], iop[22] } : 3'b110;
-        3'b111: iop_status <= sched_ack ? 3'b000 : 3'b111;
+        3'b000: iop_status <= id_ack ? next_status : iop_status;
+        3'b001: iop_status <= next_status;
+        3'b010: iop_status <= next_status;
+        3'b011: iop_status <= next_status;
+        3'b100: iop_status <= sched_ack ? next_status : iop_status;
+        3'b101: iop_status <= sched_ack ? next_status : iop_status;
+        3'b110: iop_status <= sched_ack ? next_status : iop_status;
+        3'b111: iop_status <= sched_ack ? next_status : iop_status;
         endcase
     end
 end

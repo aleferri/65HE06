@@ -15,12 +15,9 @@ module station(
     input   wire[15:0]  lsu_data,
     input   wire        lsu_wb,
     
-    //ALU Interface
-    input   wire[15:0]  alu_addr,
-    
-    //Sched Interface
-    output  wire        r_ready,
-    output  wire        r_will_complete,
+    //Scheduler Interface
+    output  wire        r_ready,            //invariant of inputs, status only
+    output  wire        r_will_complete,    //invariant of inputs, status only
     output  wire[15:0]  r_pc,
     output  wire[15:0]  r_k16,
     output  wire[15:0]  r_agu_k16,
@@ -35,11 +32,11 @@ module station(
     output  wire        r_ld_mem,
     output  wire        r_mem_width,
     output  wire        r_bypass_b,
-    output  wire        r_lock_loads,       //lock loads
-    output  wire[3:0]   r_lock_reg_wr,      //lock register from being read
-    output  wire[2:0]   r_lock_reg_rd_0,    //lock register from being written
-    output  wire[2:0]   r_lock_reg_rd_1,    //lock register from being written
-    output  wire[2:0]   r_lock_reg_rd_2,    //lock register from being written
+    output  wire        r_lock_loads,       //lock loads,                       invariant
+    output  wire[3:0]   r_lock_reg_wr,      //lock register from being read,    invariant
+    output  wire[2:0]   r_lock_reg_rd_0,    //lock register from being written  invariant
+    output  wire[2:0]   r_lock_reg_rd_1,    //lock register from being written  invariant
+    output  wire[2:0]   r_lock_reg_rd_2,    //lock register from being written  invariant
     input   wire        sched_ack
 );
 parameter ST_COMPLETE = 3'b000;
@@ -94,7 +91,7 @@ wire is_status_store = iop_status == ST_STORE;
  * -----------------------------------
  * 04: mem_is_rmw           (STORE step)
  * 03: mem_width            (LOAD/STORE step)
- * 02: mar_write            (LOAD/STORE step)
+ * 02: reserved
  * 01: reserved
  * 00: reserved
  * -----------------------------------
@@ -172,7 +169,7 @@ assign r_forward_to_rmw = offload_rmw;
 
 assign r_st_mem = is_status_store;
 assign r_ld_mem = is_status_load_0 | is_status_load_1;
-assign r_mem_width = iop[3] & ~is_status_load_0;
+assign r_mem_width = iop[3] & ~is_status_load_0 & ~( iop[23] & is_status_store );
 
 assign r_bypass_b = iop[5];
 

@@ -8,14 +8,15 @@ module cpu_status(
     input   wire        rst,
     input   wire        wai,
     input   wire        stp,
-    input   wire        restore,
-    input   wire        jsr,
-    input   wire        bsr,
+    input   wire        rti,
     input   wire        feed_ack,
     input   wire[7:0]   ir_low,
+    input   wire        sf_rdy,
+    input   wire        sf_busy,
     output  wire[15:0]  int_ir,
     output  wire[15:0]  int_k,
-    output  wire        int_ack,
+    output  wire        nmi_ack,
+    output  wire        irq_ack,
     output  wire        replace_ir,
     output  wire        replace_k,
     output  wire        hold_fetch,
@@ -23,55 +24,53 @@ module cpu_status(
 );
 parameter INT_VEC_BASE = 14'b1111_1111_1111_11;
 
+// Reset Vector
 // FFFE-FFFF : IRQ 11
 // FFFC-FFFD : RST 10
 // FFFA-FFFB : NMI 01
 // FFF8-FFF9 : BRK 00
 
-reg mask_irq;
-reg is_powerup;
+/**
+ * States:
+ *  0) Reset                                         ; GOTO 1
+ *  1) JUMP VECTOR                                   ; GOTO 2 when issued
+ *  2) Skip Next                                     ; GOTO 3 when done
+ *  3) Normal Operation                              ; GOTO 1 when IRQ | NMI | BRK | RST; GOTO 4 when opcode read busy flags; GOTO 7 when STP; GOTO 6 when WAI
+ *  4) Wait flags busy                               ; GOTO 3 when resolved
+ *  5) Wait Reset
+ *  6) Wait Interrupt                                ; GOTO 1 when IRQ | RST | NMI
+ *  7) Wait Reset                                    ; GOTO 1 when RST
+ *
+ * Invariants:
+ * In 3 and 6 any interrupt mask IRQ
+ * In 3 RTI unmask IRQ
+ * On IRQ_ACK the irq status is asserted, on NMI_ACK the nmi status is asserted, only one of them can be high in the same cycle
+ *
+ * Fetch is put on hold during state 3 if the future state is not 3
+ * Decode is put on hold during state 3 if the future state is not 3
+ * Fetch is put on hold during states: 0, 1, 2, 4, 5, 6, 7
+ * Decode is put on hold during states: 0, 2, 4, 5, 6, 7 
+ **/
+ 
+reg irq_mask;
+reg busy_flags;
 
-always @(posedge clk or negedge a_rst) begin
-    if ( ~a_rst ) begin
-        mask_irq = 1'b0;
-    end else begin
-        mask_irq <= ~mask_irq & irq | mask_irq & ~restore;
-    end
-end
-
-always @(posedge clk or negedge a_rst) begin
-    if ( ~a_rst ) begin
-        is_powerup = 1'b0;
-    end else begin
-        is_powerup <= ( next_proc_status == 3'b000 );
-    end
-end
-
-wire irq_masked = irq & ~mask_irq;
-
-//JSR/INT SEQUENCE:
-// 0) stable
-// 1) IR = push pc; hold fetch
-// 2) IR = jmp dest; assert inv_pc, goto stable
-// OTHER STATES
-// 3) wai: hold fetch/decode until irq/nmi/rst
-// 4) stp: hold fetch/decode until rst
 
 reg[2:0] proc_status;
 reg[2:0] next_proc_status;
 
-wire is_interrupt = nmi | rst | irq_masked | brk | ~is_powerup;
+wire is_interrupt = nmi | rst | irq_masked | brk;
 
 always @(*) begin
     case (proc_status)
-    3'b000: next_proc_status = ( is_interrupt | jsr | bsr ) ? { wai | stp, stp, 1'b1 } : 3'b000;
-    3'b001: next_proc_status = feed_ack ? 3'b010 : 3'b001;
-    3'b010: next_proc_status = feed_ack ? 3'b000 : 3'b010;
-    3'b011: next_proc_status = 3'b000;
-    3'b100: next_proc_status = 3'b000;
-    3'b101: next_proc_status = 3'b001;
-    3'b110: next_proc_status = 3'b000;
-    3'b111: next_proc_status = rst ? 3'b001 : 3'b111;
+    3'b000: next_proc_status = 3'b001;
+    3'b001: next_proc_status = feed_ack ? 3'b010 : proc_status;
+    3'b010: next_proc_status = feed_ack ? 3'b011 : proc_status;
+    3'b011: next_proc_status = sf_busy ? 3'b100 : ( is_interrupt & feed_ack | wai | stp ) ? { wai | stp, stp, 1'b1 } : proc_status;
+    3'b100: next_proc_status = { ~sf_rdy, sf_rdy, sf_rdy };
+    3'b101: next_proc_status = rst ? 3'b001 : proc_status;
+    3'b110: next_proc_status = is_interrupt ? 3'b000 : proc_status;
+    3'b111: next_proc_status = rst ? 3'b001 : proc_status;
     endcase
 end
 
@@ -83,28 +82,35 @@ always @(posedge clk or negedge a_rst) begin
     end
 end
 
+reg mask_irq;
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
+        mask_irq = 1'b0;
+    end else begin
+        mask_irq <= ~mask_irq & irq | mask_irq & ~rti;
+    end
+end
+
+wire irq_masked = irq & ~mask_irq;
+
 reg was_irq;
 reg was_rst;
 reg was_nmi;
 reg was_brk;
-reg was_bsr;
-reg was_jsr;
 
 always @(posedge clk) begin
-    was_irq <= ( proc_status === 3'b000 ) ? irq : was_irq;
-    was_rst <= ( proc_status === 3'b000 ) ? (rst | ~is_powerup) : was_rst;
-    was_nmi <= ( proc_status === 3'b000 ) ? nmi : was_nmi;
-    was_brk <= ( proc_status === 3'b000 ) ? brk : was_brk;
-    was_bsr <= ( proc_status === 3'b000 ) ? bsr : was_bsr;
-    was_jsr <= ( proc_status === 3'b000 ) ? jsr : was_jsr;
+    was_irq <= ( proc_status == 3'b011 ) ? irq : was_irq;
+    was_rst <= ( proc_status == 3'b011 ) ? rst : was_rst | (proc_status == 3'b000);
+    was_nmi <= ( proc_status == 3'b011 ) ? nmi : was_nmi;
+    was_brk <= ( proc_status == 3'b011 ) ? brk : was_brk;
 end
 
-assign int_ir = (next_proc_status === 3'b001) ? 16'b10000_011_0010_00_10 : { 8'b00010_011, (was_jsr ? ir_low : 8'b0010_1100) };
-assign int_k = (next_proc_status === 3'b001) ? 16'h0002 : { INT_VEC_BASE, was_rst | was_irq, was_nmi | was_irq };
-assign int_ack = ( next_proc_status === 3'b001 );
-assign replace_ir = ( proc_status === 3'b001 ) | ( proc_status === 3'b010 ) & ~was_bsr;
-assign replace_k = ( proc_status === 3'b001 ) | ( proc_status === 3'b010 ) & ( was_rst | was_irq | was_nmi | was_brk );
-assign hold_fetch = ( next_proc_status === 3'b001 ) | (next_proc_status === 3'b010);
-assign hold_decode = ( next_proc_status === 3'b001 ) | (next_proc_status === 3'b010);
+assign int_ir = was_rst ? { 8'b00010_011, 8'b0010_1100 } : 16'b10000_011_0010_00_10;
+assign int_k = { INT_VEC_BASE, was_rst | was_irq, was_nmi | was_irq };
+assign int_ack = ( next_proc_status == 3'b001 );
+assign replace_ir = ( proc_status == 3'b001 );
+assign replace_k = ( proc_status == 3'b001 );
+assign hold_fetch = ( next_proc_status != 3'b011 );
+assign hold_decode = ( next_proc_status != 3'b001 ) & (next_proc_status != 3'b011);
 
 endmodule

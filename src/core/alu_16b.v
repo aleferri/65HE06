@@ -39,7 +39,7 @@ reg zero;
 reg negative;
 reg acquired;
 
-wire carry_in = sf[0] & carry_mask;
+wire carry_in = rf_sf[0] & carry_mask;
 wire not_carry_in = ~carry_in;
 
 wire[15:0] alu_a = rf_a;
@@ -88,7 +88,7 @@ always @(*) begin
     overflow = has_v & ( result_val[15] & ~alu_a[15] & ( ~alu_b[15] ^ is_sub) | ~result_val[15] & alu_a[15] & (alu_b[15] ^ is_sub) );
     zero = ( result_val == 0 );
     negative = result_val[15];
-    acquired = ~zero_before & is_dep;
+    acquired = ~was_zero & is_dep;
     address_val = agu_a + agu_b;
 end
     

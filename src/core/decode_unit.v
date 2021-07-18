@@ -12,11 +12,12 @@ module decode_unit(
     output  wire        br_taken,
     output  wire        pc_inv,
     output  wire        pc_inc,
+    output  wire        is_rdy,
     output  wire        restore_int,
-    output  wire        is_stp,
-    output  wire        is_wai,
-    output  wire        is_bsr,
-    output  wire        is_jsr,
+    output  wire        int_is_stp,
+    output  wire        int_is_wai,
+    output  wire        int_is_bsr,
+    output  wire        int_is_jsr,
     output  wire[19:0]  uop_0,
     output  wire[19:0]  uop_1,
     output  wire[19:0]  uop_2,
@@ -36,8 +37,8 @@ parameter LSR_OP = 5'b01010;
 parameter ASL_OP = 5'b01011;
 parameter ADC_OP = 5'b01100;
 parameter SBC_OP = 5'b01101;
-parameter ROL_OP = 5'b01110;
-parameter ROR_OP = 5'b01111;
+parameter ROR_OP = 5'b01110;
+parameter ROL_OP = 5'b01111;
 parameter STA_OP = 5'b10000;
 parameter RMW_OP = 5'b10001;
 parameter CAI_OP = 5'b11110;
@@ -70,6 +71,7 @@ wire is_inc = ir[10:8] == UNARY_INC;
 wire is_dep = ir[10:8] == UNARY_DEP;
 
 wire is_bsr = ir[15:11] == 5'b10100;
+wire is_jsr = ir[15:11] == 5'b10101;
 
 wire is_brk = ir[15:11] == 5'b10110;
 wire is_rti = ir[15:11] == 5'b11000;
@@ -138,7 +140,9 @@ wire is_pc_update = (is_pc_dest | is_predicated_op & busy_sf) & (status == 2'b00
 wire bit_0_active = (status == 2'b00) & is_predicated_op & busy_sf | ~is_taken_pred & (status == 2'b11);
 wire bit_1_active = is_pc_update | (~ir_valid & status == 2'b10 ) | ( status == 2'b11 & busy_sf );
 
-wire issued = ~bit_0_active & ~bit_1_active & feed_req & ir_valid;
+wire issued = ~bit_0_active & ~bit_1_active & feed_req & ir_valid & ~not_taken_pred;
+
+assign is_rdy = (status == 2'b00) & ~bit_0_active & ~bit_1_active;
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
@@ -205,7 +209,7 @@ assign restore_int = is_rti & issued;
 assign feed_ack = issued;
 assign br_taken = is_predicated_op & is_taken_pred | is_bsr;
 assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred;
-assign pc_inv = is_pc_dest & ~is_addcc_imm;
+assign pc_inv = is_pc_dest & ~(is_predicated_op & is_taken_pred & is_addcc_imm);
 assign sel_pc = is_reg & (field_reg_1 == 3'b011) | is_sta & (field_reg_0 == 3'b011);
 
 endmodule

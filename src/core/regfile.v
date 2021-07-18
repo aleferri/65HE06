@@ -50,8 +50,8 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-    a <= is_a_pc ? pc : conflict_a ? alu_r : bank_a[r_a_addr];
-    b <= is_b_pc ? pc : conflict_b ? alu_r : bank_b[r_b_addr];
+    a <= is_a_pc ? r_pc : conflict_a ? alu_r : bank_a[r_a_addr];
+    b <= is_b_pc ? r_pc : conflict_b ? alu_r : bank_b[r_b_addr];
     if ( dest_r_wr ) begin
         bank_a[ dest_r_addr ] <= alu_r;
         bank_b[ dest_r_addr ] <= alu_r;

@@ -65,38 +65,126 @@ front_end front(
     .ex_k ( ex_k )
 );
 
-ucore back(
-    .clk ( clk ),
-    .a_rst ( a_rst ),
-    .hold ( ex_hold ),
-    .uop_0 ( ex_uop_0 ),
-    .uop_1 ( ex_uop_1 ),
-    .uop_2 ( ex_uop_2 ),
-    .uop_cnt ( ex_uop_count ),
-    .k16 ( ex_k ),
-    .mem_data_in ( d_mem_data_in ),
-    .mem_rq_data ( ex_rq_data ),
-    .mem_rq_addr ( ex_rq_addr ),
-    .mem_rq_cmd ( ex_rq_cmd ),
-    .mem_rq_width ( ex_rq_width ),
-    .mem_rq_start ( ex_rq_start ),
-    .mem_rq_prepare_addr ( ex_rq_wr_addr ),
-    .mem_t_id ( ex_rq_t_id ),
-    .mem_data_t_wr ( ex_t_id_wr ),
-    .mem_data_wr ( mem_writeback ),
-    .id_sf_data ( sf_shared ),
-    .id_sf_wr ( ex_sf_wr ),
-    .fe_pc ( ex_pc ),
-    .fe_pc_wr ( ex_pc_w ),
-    .de_feed_req ( ex_feed_req ),
-    .de_feed_ack ( ex_feed_ack )
+scheduling_queue q(
+    input   wire        clk,
+    input   wire        a_rst,
+    
+    input   wire        id_feed,
+    input   wire[31:0]  id_iop,
+    input   wire[2:0]   id_iop_init,
+    input   wire[15:0]  id_pc,
+    input   wire[15:0]  id_k16,
+    output  wire        id_ack,
+    
+    //RF during scheduling
+    output  wire[2:0]   rf_a_adr,
+    output  wire[2:0]   rf_b_adr,
+    
+    //ALU during execution
+    output  wire[15:0]  alu_t16,
+    output  wire        alu_wr_sf,
+    output  wire        alu_carry_mask,
+    output  wire[3:0]   alu_fn,
+    output  wire        alu_bypass_b,
+    
+    //RF during execution
+    output  wire[3:0]   rf_d_addr,
+    
+    //AGU interface
+    output  wire        agu_zero_index,
+    output  wire[15:0]  agu_offset,
+    
+    //LSU interface
+    output  wire        rmw_offload,
+    output  wire        lsu_rq_width,
+    output  wire        lsu_rq_cmd,
+    output  wire        lsu_rq_tag,
+    output  wire        lsu_rq_start,
+    input   wire        lsu_wait,
+    
+    //LSU interface after load
+    input   wire[15:0]  lsu_data_in,
+    input   wire        lsu_data_tag,
+    input   wire        lsu_data_wb
+);
+
+regfile rf(
+    input   wire        clk,
+    
+    //R Station Interface
+    input   wire[2:0]   r_a_addr,
+    input   wire[2:0]   r_b_addr,
+    input   wire[15:0]  r_pc,
+    
+    //ALU interface
+    input   wire[15:0]  alu_r,
+    input   wire[15:0]  alu_flags,
+    output  wire[15:0]  alu_a,
+    output  wire[15:0]  alu_b,
+    
+    //ALU rmw interface
+    input   wire[15:0]  rmw_flags,
+    input   wire        rmw_w_flags,
+    
+    //Control Interface
+    input   wire        dest_r_wr,
+    input   wire[1:0]   dest_r_addr,
+    input   wire        dest_w_flags,
+    
+    //Both ALU & ID
+    output  wire[15:0]  flags
+);
+
+alu_rwm rmw(
+    input   wire        clk,                // Clock
+    input   wire        a_rst,              // Async reset
+    
+    input   wire[15:0]  agu_addr,           // AGU generated address
+    
+    input   wire        mem_rdy,            // Memory ready
+    input   wire[15:0]  mem_data_in,        // Memory Data in
+    
+    input   wire[1:0]   sched_rmw_fn,       // Function to perform with the data
+    input   wire        sched_rmw,          // Start RMW operation, in parallel with the load ack of LSU
+    input   wire        sched_wr_flags,     // Write flags after operation
+    input   wire        sched_carry_mask,   // Carry Mask
+    
+    input   wire[15:0]  rf_flags_in,        // Current flags
+    output  wire        rf_flags_wr,        // Write flags
+    output  wire[15:0]  rf_flags_out,       // Result flags from operation
+    
+    input   wire        lsu_ack,            // LSU accepted write request
+    output  wire        lsu_deny_op,        // Deny any operations at the same address
+    output  wire[15:0]  lsu_data,           // Modified data for LSU
+    output  wire[15:0]  lsu_addr,           // Original address for LSU
+    output  wire        lsu_data_rdy        // Modified data is ready
+);
+
+alu_16b alu(
+    input   wire        carry_mask,
+    input   wire[3:0]   alu_f,
+    
+    //Reg File interface
+    input   wire[15:0]  rf_a,
+    input   wire[15:0]  rf_b,
+    output  wire[15:0]  rf_d,
+    output  wire[15:0]  rf_sf,
+    
+    //Scheduler interface
+    input   wire[15:0]  sched_t16,
+    input   wire[15:0]  sched_agu_t16,
+    input   wire        sched_bypass_b,
+    input   wire        sched_zero_index,
+    
+    //Load Store Interface
+    output  wire[15:0]  lsu_adr,
+    output  wire[15:0]  lsu_payload
 );
 
 lsu_16b lsu(
     .clk ( clk ),
     .a_rst ( a_rst ),
     .rq_addr ( ex_rq_addr ),
-    .rq_wr_addr ( ex_rq_wr_addr ),
     .rq_data ( ex_rq_data ),
     .rq_width ( ex_rq_width ),
     .rq_cmd ( ex_rq_cmd ),
@@ -109,7 +197,6 @@ lsu_16b lsu(
     .be0 ( d_mem_be0 ),
     .be1 ( d_mem_be1 ),
     .mem_bus_assert ( d_mem_assert ),
-    .t_id ( ex_t_id_wr ),
     .rq_ack ( ex_rq_ack )
 );
 

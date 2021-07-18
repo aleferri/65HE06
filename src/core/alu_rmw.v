@@ -13,7 +13,7 @@ module alu_rwm(
     input   wire        sched_wr_flags,     // Write flags after operation
     input   wire        sched_carry_mask,   // Carry Mask
     
-    input   wire        rf_flags_in,        // Current flags
+    input   wire[15:0]  rf_flags_in,        // Current flags
     output  wire        rf_flags_wr,        // Write flags
     output  wire[15:0]  rf_flags_out,       // Result flags from operation
     
@@ -52,10 +52,10 @@ reg wr_flags;
 
 always @(posedge clk) begin
     data <= mem_rdy ? mem_data_in : data;
-    addr <= r_rmw ? agu_addr : addr;
-    rmw_fn <= r_rmw ? sched_rmw_fn : rmw_fn;
-    wr_flags <= r_rmw ? sched_wr_flags : wr_flags;
-    carry_mask <= r_rmw ? sched_carry_mask : carry_mask;
+    addr <= sched_rmw ? agu_addr : addr;
+    rmw_fn <= sched_rmw ? sched_rmw_fn : rmw_fn;
+    wr_flags <= sched_rmw ? sched_wr_flags : wr_flags;
+    carry_mask <= sched_rmw ? sched_carry_mask : carry_mask;
 end
 
 // Combinatory Logic
@@ -83,9 +83,9 @@ always @(*) begin
         acquired = ~was_zero;
     end
     //  LSR/ROR
-    2'b10: { acquired, result, carry } = { 1'b0, carry_in, alu_b };
+    2'b10: { acquired, result, carry } = { 1'b0, carry_in, data };
     //  ASL/ROL
-    2'b11: { acquired, carry, result } = { 1'b0, alu_b, carry_in };
+    2'b11: { acquired, carry, result } = { 1'b0, data, carry_in };
     endcase
     zero = result == 16'b0;
 end

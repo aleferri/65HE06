@@ -4,12 +4,12 @@ module station(
     input   wire        a_rst,
     
     //Instruction Decode Interface
-    input   wire        id_ack,
+    input   wire        id_feed,
     input   wire[31:0]  id_iop,
     input   wire[2:0]   id_iop_init,
     input   wire[15:0]  id_pc,
     input   wire[15:0]  id_k16,
-    output  wire        id_feed,
+    output  wire        id_complete,
     
     //LSU Interface
     input   wire[15:0]  lsu_data,
@@ -26,6 +26,7 @@ module station(
     output  wire[3:0]   r_d_adr,
     output  wire[3:0]   r_fn,
     output  wire        r_mask_carry,
+    output  wire        r_mask_index,
     output  wire        r_save_flags,
     output  wire        r_forward_to_rmw,
     output  wire        r_st_mem,
@@ -103,14 +104,14 @@ reg[31:0] iop;
 reg[15:0] iop_pc;
 
 always @(posedge clk) begin
-    iop <= (id_feed & id_ack) ? id_iop : iop;
-    iop_pc <= (id_feed & id_ack) ? id_pc : iop_pc;
+    iop <= id_feed ? id_iop : iop;
+    iop_pc <= id_feed ? id_pc : iop_pc;
 end
 
 reg[15:0] iop_k16;
 
 always @(posedge clk) begin
-    case({lsu_wb, id_feed & id_ack})
+    case({lsu_wb, id_feed})
     2'b00: iop_k16 <= iop_k16;
     2'b01: iop_k16 <= id_k16;
     2'b10: iop_k16 <= lsu_data;
@@ -143,8 +144,7 @@ end
 wire offload_rmw = is_status_load_1 & iop[4];
 wire write_back_alu = is_status_load_1 & iop[28] | is_status_store & iop[28];
 
-//This signal is already gated by sched_ack
-assign id_feed = is_status_complete | is_status_alu & sched_ack;
+assign id_complete = is_status_complete;
 
 //These signals are expected to be gated outside the station
 
@@ -152,6 +152,8 @@ assign id_feed = is_status_complete | is_status_alu & sched_ack;
 assign r_pc = iop_pc;
 assign r_k16 = iop_k16;
 assign r_agu_k16 = ( is_status_store | iop[29] ) ? iop_k16 : 16'b0;
+
+assign r_mask_index = is_status_load_1 & iop[ 30 ];
 
 assign r_a_adr = is_status_load_0 ? { 1'b1, iop[25:24] } : ( is_status_load_1 | is_status_store ) ? { 1'b1, iop[27:26] } : iop[15:13];
 assign r_b_adr = iop[12:10];
@@ -205,7 +207,7 @@ always @(posedge clk or posedge a_rst) begin
         iop_status = 3'b000;
     end else begin
         case (iop_status)
-        3'b000: iop_status <= id_ack ? next_status : iop_status;
+        3'b000: iop_status <= id_feed ? next_status : iop_status;
         3'b001: iop_status <= next_status;
         3'b010: iop_status <= next_status;
         3'b011: iop_status <= next_status;
@@ -215,6 +217,13 @@ always @(posedge clk or posedge a_rst) begin
         3'b111: iop_status <= sched_ack ? next_status : iop_status;
         endcase
     end
+end
+
+always @(*) begin
+    assert( iop_status[0] == 1'b0 || iop_status[0] == 1'b1 );
+    assert( iop_status[1] == 1'b0 || iop_status[1] == 1'b1 );
+    assert( iop_status[2] == 1'b0 || iop_status[2] == 1'b1 );
+    assert( r_ready == 1'b0 || r_ready == 1'b1 );
 end
 
 endmodule

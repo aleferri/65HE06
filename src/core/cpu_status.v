@@ -6,9 +6,9 @@ module cpu_status(
     input   wire        irq,
     input   wire        brk,
     input   wire        rst,
-    input   wire        wai,
-    input   wire        stp,
-    input   wire        rti,
+    input   wire        op_wai,
+    input   wire        op_stp,
+    input   wire        op_rti,
     input   wire        feed_ack,
     input   wire[7:0]   ir_low,
     input   wire        sf_rdy,
@@ -66,7 +66,7 @@ always @(*) begin
     3'b000: next_proc_status = 3'b001;
     3'b001: next_proc_status = feed_ack ? 3'b010 : proc_status;
     3'b010: next_proc_status = feed_ack ? 3'b011 : proc_status;
-    3'b011: next_proc_status = sf_busy ? 3'b100 : ( is_interrupt & feed_ack | wai | stp ) ? { wai | stp, stp, 1'b1 } : proc_status;
+    3'b011: next_proc_status = sf_busy ? 3'b100 : ( is_interrupt & feed_ack | op_wai | op_stp ) ? { op_wai | op_stp, op_stp, 1'b1 } : proc_status;
     3'b100: next_proc_status = { ~sf_rdy, sf_rdy, sf_rdy };
     3'b101: next_proc_status = rst ? 3'b001 : proc_status;
     3'b110: next_proc_status = is_interrupt ? 3'b000 : proc_status;

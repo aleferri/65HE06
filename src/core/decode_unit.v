@@ -1,27 +1,28 @@
 module decode_unit(
     input   wire        clk,
     input   wire        a_rst,
+    
+    // cpu status control
     input   wire        hold,
-    input   wire        ir_valid,
-    input   wire        feed_req,
-    output  wire        feed_ack,
+    input   wire        clr_idx,
+    output  wire        op_rti,
+    output  wire        op_stp,
+    output  wire        op_wai,
+    
+    // instruction fetch
     input   wire[15:0]  ir,
-    input   wire[7:0]   sf,
-    input   wire        sf_written,
-    output  wire        sel_pc,
     output  wire        br_taken,
     output  wire        pc_inv,
     output  wire        pc_inc,
-    output  wire        is_rdy,
-    output  wire        restore_int,
-    output  wire        int_is_stp,
-    output  wire        int_is_wai,
-    output  wire        int_is_bsr,
-    output  wire        int_is_jsr,
-    output  wire[19:0]  uop_0,
-    output  wire[19:0]  uop_1,
-    output  wire[19:0]  uop_2,
-    output  wire[1:0]   uop_count
+    
+    // alu
+    input   wire[7:0]   sf,
+    
+    // scheduling queue
+    input   wire        id_req,
+    output  wire        id_feed,
+    output  wire[31:0]  id_iop,
+    output  wire[2:0]   id_iop_init
 );
 parameter ADD_OP = 5'b00000;
 parameter SUB_OP = 5'b00001;
@@ -128,21 +129,23 @@ wire[2:0] field_reg_1 = ir[2:0];
 wire[1:0] field_reg_2 = ir[3:2];
 wire[1:0] field_reg_3 = ir[1:0];
 
-reg busy_sf;
-reg[1:0] status;
-
 wire width_bit = ir[6];
 
+assign op_rti = is_rti;
+assign op_stp = is_stp;
+assign op_wai = is_wai;
+
+reg[1:0] status;
+
 wire is_pc_dest = (field_reg_0 == 3'b011) & ~is_sta;
-wire is_pc_update = (is_pc_dest | is_predicated_op & busy_sf) & (status == 2'b00);
+wire is_pc_update = (is_pc_dest | is_predicated_op) & (status == 2'b00);
 
+assign br_taken = is_predicated_op & is_taken_pred | is_bsr;
+assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred;
+assign pc_inv = is_pc_dest & ~(is_predicated_op & is_taken_pred & is_addcc_imm);
 
-wire bit_0_active = (status == 2'b00) & is_predicated_op & busy_sf | ~is_taken_pred & (status == 2'b11);
-wire bit_1_active = is_pc_update | (~ir_valid & status == 2'b10 ) | ( status == 2'b11 & busy_sf );
-
-wire issued = ~bit_0_active & ~bit_1_active & feed_req & ir_valid & ~not_taken_pred;
-
-assign is_rdy = (status == 2'b00) & ~bit_0_active & ~bit_1_active;
+wire bit_0_active = (status == 2'b00) & is_predicated_op | ~is_taken_pred & (status == 2'b11);
+wire bit_1_active = is_pc_update | (~ir_valid & status == 2'b10 ) | ( status == 2'b11 );
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
@@ -152,64 +155,75 @@ always @(posedge clk or negedge a_rst) begin
     end
 end
 
-always @(posedge clk or negedge a_rst) begin
-    if ( ~a_rst ) begin
-        busy_sf = 1'b0;
-    end else begin
-        if ( busy_sf ) begin
-            busy_sf <= hold | ~(~hold & sf_written);
-        end else begin
-            busy_sf <= (status == 2'b0) & (field_reg_0 == 3'b010 | save_flags) & ~is_sta & ~hold & ir_valid;
-        end
-    end
-end
-
-assign uop_2 = {
-    4'b0,
-    1'b0, //mask flags
-    1'b1, // ld
-    1'b0, // wr
-    1'b0, //write flags,
-    4'b1000, // destination bits
-    1'b0,  // write back address
-    1'b0,  // select input for ALU, always select K
-    { 1'b1, field_reg_3 }, // B register select, don't care for uop_2
-    { 1'b1, field_reg_3 } // A register select, top bit is always 1
+/**
+ * Internal OPeration fields:
+ *
+ * 30: agu_mask_index       (AGU step)
+ * 29: agu_send_index       (AGU step)
+ * 28: agu_write_back       (AGU step)
+ * 27: agu_index_1_1        (AGU step)
+ * 26: agu_index_1_0        (AGU step)
+ * 25: agu_index_0_1        (AGU step)
+ * 24: agu_index_0_0        (AGU step)
+ * -----------------------------------
+ * 23: alu_is_jsr           (ALU step)
+ * 22: alu_st_mem           (ALU step)
+ * 21: alu_save_flags       (ALU step)
+ * 20: alu_carry_mask       (ALU step)
+ * 19: alu_fn_3             (ALU step)
+ * 18: alu_fn_2             (ALU step)
+ * 17: alu_fn_1             (ALU step)
+ * 16: alu_fn_0             (ALU step)
+ * 15: alu_a_2              (ALU step)
+ * 14: alu_a_1              (ALU step)
+ * 13: alu_a_0              (ALU step)
+ * 12: alu_b_2              (ALU step)
+ * 11: alu_b_1              (ALU step)
+ * 10: alu_b_0              (ALU step)
+ * 09: alu_d_3              (ALU step)
+ * 08: alu_d_2              (ALU step)
+ * 07: alu_d_1              (ALU step)
+ * 06: alu_d_0              (ALU step)
+ * 05: alu_k                (ALU step)
+ * -----------------------------------
+ * 04: mem_is_rmw           (STORE step)
+ * 03: mem_width            (LOAD/STORE step)
+ * 02: reserved
+ * 01: reserved
+ * 00: reserved
+ * -----------------------------------
+ */
+ 
+assign id_iop = {
+    // agu
+    clr_idx,
+    is_push,
+    is_push | is_pop,
+    field_reg_3,
+    field_reg_2,
+    // alu
+    is_jsr | is_bsr,
+    is_sta | is_rmw,
+    save_flags,
+    is_adc | is_sbc | is_rol | is_ror,
+    alu_bits_last_step,
+    field_reg_0,
+    field_reg_1,
+    ~is_sta & ~is_rmw & ~is_cmp & ~is_tst,
+    field_reg_0,
+    ~is_reg,
+    // mem
+    is_rmw,
+    width_bit,
+    3'b0
 };
 
-assign uop_1 = {
-    is_push ? 4'b0010 : 4'b0111, // sub if push
-    1'b0,                        // always mask
-    is_sta & is_ixy | is_ld,     // load if is sta indirect or is load
-    1'b0,                        // never store
-    1'b0,                        // never write flags 
-    is_push ? { 2'b01, field_reg_2 } : { 3'b100, is_ld & width_bit }, // width is 1 only if is load 8 bit
-    is_pop,                      // write back address if is pop
-    1'b0,                        // always select K                      
-    field_reg_1,                 // don't care, as we always select K
-    (is_sta & is_ixy) ? { 1'b1, field_reg_3 } : { 1'b1, field_reg_2 } // source is re-index if sta indirect, index otherwise
+assign id_iop_init = {
+    1'b1,
+    is_reg | is_imm | is_sta,
+    is_idx
 };
 
-assign uop_0 = {
-    alu_bits_last_step,         // selected ALU function
-    is_adc | is_sbc | is_rol | is_ror, //do not mask if the op use carry
-    1'b0,                              //last operation cannot load
-    is_rmw | is_sta,                   //write if is sta or read-modify-write
-    save_flags,                        //save flags if the op requires it
-    ( is_sta | is_rmw | not_taken_pred ) ? { 1'b1, not_taken_pred, 1'b0, width_bit } : field_reg_0, // dest: 4 bit
-    1'b0,                              //never write back
-    is_reg,                            //select p if K
-    is_sta ? field_reg_0 : field_reg_1,  //if op is store then B register is @A
-    is_sta ? { 1'b1, field_reg_2 } : field_reg_0 // if op is store then A register is index
-};
-
-assign uop_count = (is_reg | is_imm | is_sta & is_idx & ~is_push) ? 2'b0 : ( is_lda & is_idx | is_sta & is_ixy | is_push ) ? 2'b01 : 2'b10;
-assign restore_int = is_rti & issued;
-
-assign feed_ack = issued;
-assign br_taken = is_predicated_op & is_taken_pred | is_bsr;
-assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred;
-assign pc_inv = is_pc_dest & ~(is_predicated_op & is_taken_pred & is_addcc_imm);
-assign sel_pc = is_reg & (field_reg_1 == 3'b011) | is_sta & (field_reg_0 == 3'b011);
+assign id_feed = ~hold & ~not_taken_pred;
 
 endmodule

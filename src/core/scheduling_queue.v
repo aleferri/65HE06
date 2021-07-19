@@ -8,7 +8,7 @@ module scheduling_queue(
     input   wire[2:0]   id_iop_init,
     input   wire[15:0]  id_pc,
     input   wire[15:0]  id_k16,
-    output  wire        id_ack,
+    output  wire        id_req,
     
     //RF during scheduling
     output  wire[2:0]   rf_a_adr,
@@ -99,7 +99,7 @@ wire[2:0] rsa_lock_reg_rd_0, rsb_lock_reg_rd_0;
 wire[2:0] rsa_lock_reg_rd_1, rsb_lock_reg_rd_1;
 wire[2:0] rsa_lock_reg_rd_2, rsb_lock_reg_rd_2;
 
-assign id_ack = is_rsa_done | is_rsb_done;
+assign id_req = is_rsa_done | is_rsb_done;
 
 station rsa(
     .clk    ( clk ),

@@ -19,7 +19,6 @@ module decode_unit(
     input   wire[7:0]   sf,
     
     // scheduling queue
-    input   wire        id_req,
     output  wire        id_feed,
     output  wire[31:0]  id_iop,
     output  wire[2:0]   id_iop_init
@@ -42,6 +41,8 @@ parameter ROR_OP = 5'b01110;
 parameter ROL_OP = 5'b01111;
 parameter STA_OP = 5'b10000;
 parameter RMW_OP = 5'b10001;
+parameter LDF_OP = 5'b10010;
+parameter STF_OP = 5'b10011;
 parameter CAI_OP = 5'b11110;
 parameter CAR_OP = 5'b11111;
 
@@ -64,8 +65,9 @@ wire is_adc = ir[15:11] == ADC_OP;
 wire is_sbc = ir[15:11] == SBC_OP;
 wire is_rol = ir[15:11] == ROL_OP;
 wire is_ror = ir[15:11] == ROR_OP;
+wire is_ldf = ir[15:11] == LDF_OP;
+wire is_stf = ir[15:11] == STF_OP;
 
-wire is_ld  = ~ir[15];
 wire is_sta = ir[15:11] == STA_OP;
 wire is_rmw = ir[15:11] == RMW_OP;
 wire is_inc = ir[10:8] == UNARY_INC;
@@ -120,6 +122,8 @@ always @(*) begin
     EXT_OP: alu_bits_last_step = 4'b1000;
     BSW_OP: alu_bits_last_step = 4'b1001;
     RMW_OP: alu_bits_last_step = is_dep ? 4'b0011 : 4'b0001;
+    LDF_OP: alu_bits_last_step = 4'b1110;
+    STF_OP: alu_bits_last_step = 4'b1111;
     default: alu_bits_last_step = 4'b0000;
     endcase
 end
@@ -137,15 +141,15 @@ assign op_wai = is_wai;
 
 reg[1:0] status;
 
-wire is_pc_dest = (field_reg_0 == 3'b011) & ~is_sta;
-wire is_pc_update = (is_pc_dest | is_predicated_op) & (status == 2'b00);
+wire is_pc_dest = ( field_reg_0 == 3'b011 ) & ~is_sta;
+wire is_pc_update = ( is_pc_dest | is_predicated_op ) & ( status == 2'b00 );
 
 assign br_taken = is_predicated_op & is_taken_pred | is_bsr;
 assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred;
-assign pc_inv = is_pc_dest & ~(is_predicated_op & is_taken_pred & is_addcc_imm);
+assign pc_inv = is_pc_dest & ~( is_predicated_op & is_taken_pred & is_addcc_imm );
 
-wire bit_0_active = (status == 2'b00) & is_predicated_op | ~is_taken_pred & (status == 2'b11);
-wire bit_1_active = is_pc_update | (~ir_valid & status == 2'b10 ) | ( status == 2'b11 );
+wire bit_0_active = ( status == 2'b00 ) & is_predicated_op | ~is_taken_pred & ( status == 2'b11 );
+wire bit_1_active = is_pc_update | ~status[ 1 ];
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
@@ -195,6 +199,7 @@ end
  */
  
 assign id_iop = {
+    1'b0,
     // agu
     clr_idx,
     is_push,
@@ -209,7 +214,7 @@ assign id_iop = {
     alu_bits_last_step,
     field_reg_0,
     field_reg_1,
-    ~is_sta & ~is_rmw & ~is_cmp & ~is_tst,
+    ~is_sta & ~is_rmw & ~is_cmp & ~is_tst & ~is_stf,
     field_reg_0,
     ~is_reg,
     // mem

@@ -10,7 +10,6 @@ module cpu_status(
     input   wire        op_stp,
     input   wire        op_rti,
     input   wire        feed_ack,
-    input   wire[7:0]   ir_low,
     input   wire        sf_rdy,
     input   wire        sf_busy,
     output  wire[15:0]  int_ir,
@@ -53,8 +52,6 @@ parameter INT_VEC_BASE = 14'b1111_1111_1111_11;
  **/
  
 reg irq_mask;
-reg busy_flags;
-
 
 reg[2:0] proc_status;
 reg[2:0] next_proc_status;
@@ -87,7 +84,7 @@ always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
         mask_irq = 1'b0;
     end else begin
-        mask_irq <= ~mask_irq & irq | mask_irq & ~rti;
+        mask_irq <= ~mask_irq & irq | mask_irq & ~op_rti;
     end
 end
 
@@ -107,7 +104,8 @@ end
 
 assign int_ir = was_rst ? { 8'b00010_011, 8'b0010_1100 } : 16'b10000_011_0010_00_10;
 assign int_k = { INT_VEC_BASE, was_rst | was_irq, was_nmi | was_irq };
-assign int_ack = ( next_proc_status == 3'b001 );
+assign irq_ack = ( next_proc_status == 3'b001 ) & was_irq;
+assign nmi_ack = ( next_proc_status == 3'b001 ) & was_nmi;
 assign replace_ir = ( proc_status == 3'b001 );
 assign replace_k = ( proc_status == 3'b001 );
 assign hold_fetch = ( next_proc_status != 3'b011 );

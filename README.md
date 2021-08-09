@@ -113,7 +113,4 @@ The Microcore Repeat stages 3-5 until the execution is complete. During Main mem
 100 byte transfer using indirect indexed complete in 800 clocks, using direct indexed it requires only 600 clocks. Current performance is two/three fold of the original 6502, so the large implementation did improve performance in a meaningful way.
 
 ### TODO
-Implement interrupts
-Implement bsr immediate
-Implement jsr any
-Evaluate further code speedup. It is expected that with over 200% improvement in comparable code (+- 1 instruction) there will be additionals gains from stack relative addressing, B register and full 16 bit arithmetic.
+Evaluate further code speedup. 

@@ -13,6 +13,7 @@ module scheduling_queue(
     //RF during scheduling
     output  wire[2:0]   rf_a_adr,
     output  wire[2:0]   rf_b_adr,
+    output  wire[15:0]  rf_pc,
     
     //ALU during execution
     output  wire[15:0]  alu_t16,
@@ -22,7 +23,7 @@ module scheduling_queue(
     output  wire        alu_bypass_b,
     
     //RF during execution
-    output  wire[3:0]   rf_d_addr,
+    output  wire[3:0]   rf_d_adr,
     
     //AGU interface
     output  wire        agu_zero_index,
@@ -190,14 +191,14 @@ wire rsa_no_conflict_mem = ~rsa_ld_mem | rsa_ld_mem & ~rsb_lock_loads & ~rsa_st_
 wire rsa_no_conflict_d = ~rsa_d_adr[3] | rsa_d_adr[3] & ( rsa_d_adr[2:0] != rsb_lock_reg_rd_0 ) & ( rsa_d_adr[2:0] != rsb_lock_reg_rd_1 ) & ( rsa_d_adr[2:0] != rsb_lock_reg_rd_2 );
 wire rsa_no_conflict_a = (rsa_a_adr != rsb_lock_reg_wr);
 wire rsa_no_conflict_b = (rsa_b_adr != rsb_lock_reg_wr);
-wire rsa_no_conflict_sf = ~rsa_wr_sf | rsa_wr_sf & ~rsb_wr_sf;
+wire rsa_no_conflict_sf = ~rsa_save_flags | rsa_save_flags & ~rsb_save_flags;
 wire rsa_sched = ~rsa_order | rsa_order & rsa_ready & ~rsb_ready & rsa_no_conflict_mem & rsa_no_conflict_d & rsa_no_conflict_a & rsa_no_conflict_b & rsa_no_conflict_sf;
 
 wire rsb_no_conflict_mem = ~rsb_ld_mem | rsb_ld_mem & ~rsa_lock_loads & ~rsb_st_mem;
 wire rsb_no_conflict_d = ~rsb_d_adr[3] | rsb_d_adr[3] & ( rsb_d_adr[2:0] != rsa_lock_reg_rd_0 ) & ( rsb_d_adr[2:0] != rsa_lock_reg_rd_1 ) & ( rsb_d_adr[2:0] != rsa_lock_reg_rd_2 );
 wire rsb_no_conflict_a = (rsb_a_adr != rsa_lock_reg_wr);
 wire rsb_no_conflict_b = (rsb_b_adr != rsa_lock_reg_wr);
-wire rsb_no_conflict_sf = ~rsb_wr_sf | rsb_wr_sf & ~rsa_wr_sf;
+wire rsb_no_conflict_sf = ~rsb_save_flags | rsb_save_flags & ~rsa_save_flags;
 wire rsb_sched = ~rsb_order | rsb_order & rsb_ready & ~rsa_ready & rsb_no_conflict_mem & rsb_no_conflict_d & rsb_no_conflict_a & rsb_no_conflict_b & rsb_no_conflict_sf;
 
 assign rs_sched_adr = ~rsa_sched | rsb_sched;
@@ -206,6 +207,7 @@ assign sched_rsb_order_next = ~sched_rsa_order_next;
 
 assign rf_a_adr = rs_sched_adr ? rsb_a_adr : rsa_a_adr;
 assign rf_b_adr = rs_sched_adr ? rsb_b_adr : rsa_b_adr;
+assign rf_pc = rs_sched_adr ? rsb_pc : rsa_pc;
 
 // Muxes
 wire r_ready = rs_sched_adr ? rsb_ready : rsa_ready;
@@ -215,7 +217,7 @@ wire r_alu_carry_mask = rs_sched_adr ? rsb_mask_carry : rsa_mask_carry;
 wire[3:0] r_alu_fn = rs_sched_adr ? rsb_fn : rsa_fn;
 wire r_alu_bypass_b = rs_sched_adr ? rsb_bypass_b : rsa_bypass_b;
     
-wire[3:0] r_rf_d_addr = rs_sched_adr ? rsb_d_adr : rsa_d_adr;
+wire[3:0] r_d_adr = rs_sched_adr ? rsb_d_adr : rsa_d_adr;
     
 wire r_agu_zero_index = rs_sched_adr ? rsb_mask_index : rsa_mask_index;
 wire[15:0] r_agu_offset = rs_sched_adr ? rsb_offset16 : rsa_offset16;
@@ -236,7 +238,7 @@ always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
         front = 18'b0;
     end else begin
-        front = lsu_wait ? front : { r_ready, r_alu_wr_sf, r_alu_carry_mask, r_alu_fn, r_alu_bypass_b, r_rf_d_addr, r_agu_zero_index, r_rmw_offload, r_lsu_width, r_lsu_st_mem, r_lsu_ld_mem, r_lsu_tag };
+        front = lsu_wait ? front : { r_ready, r_alu_wr_sf, r_alu_carry_mask, r_alu_fn, r_alu_bypass_b, r_d_adr, r_agu_zero_index, r_rmw_offload, r_lsu_width, r_lsu_st_mem, r_lsu_ld_mem, r_lsu_tag };
     end
 end
 
@@ -251,7 +253,7 @@ assign alu_carry_mask = front[ 15 ];
 assign alu_fn = front[14:11];
 assign alu_bypass_b = front[10];
 
-assign rf_d_addr = { ~front[17] | front[9], ~front[ 17 ] | front[8], front[ 7:6 ] };
+assign rf_d_adr = { ~front[17] | front[9], ~front[ 17 ] | front[8], front[ 7:6 ] };
 
 assign agu_zero_index = front[ 5 ];
 assign agu_offset = front_offset16;

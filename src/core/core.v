@@ -2,11 +2,17 @@
 module core(
     input   wire        clk,
     input   wire        a_rst,
-    input   wire        evt_int,
-    output  wire        evt_int_ack,
+
+    input   wire        evt_rst,
+    input   wire        evt_nmi,
+    output  wire        evt_nmi_ack,
+    input   wire        evt_irq,
+    output  wire        evt_irq_ack,
+
     input   wire[31:0]  i_mem_opcode,
     input   wire        i_mem_rdy,
     output  wire[15:0]  i_mem_pc,
+    
     input   wire        d_mem_rdy,
     input   wire[15:0]  d_mem_data_in,
     output  wire[15:0]  d_mem_addr,
@@ -19,15 +25,12 @@ module core(
 
 wire ex_pc_w;
 wire[15:0] ex_pc;
-wire ex_feed_req;
-wire ex_feed_ack;
-wire ex_sf_wr;
+wire id_feed;
+wire ex_feed_slot;
 
-wire[19:0] ex_uop_0;
-wire[19:0] ex_uop_1;
-wire[19:0] ex_uop_2;
-wire[1:0] ex_uop_count;
-wire[15:0] ex_k;
+wire [31:0] id_iop;
+wire [2:0] id_iop_init;
+wire [15:0] id_arg;
 
 wire[15:0] ex_rq_addr;
 wire ex_rq_wr_addr;
@@ -40,146 +43,204 @@ wire ex_t_id_wr;
 wire ex_rq_ack;
 wire mem_writeback = ~d_mem_cmd & d_mem_rdy & d_mem_assert;
 
-wire[15:0] sf_shared;
-wire[7:0] ex_sf = sf_shared[7:0];
+wire [15:0] sf;
+wire ex_sf_wr;
+
 wire ex_hold = (~d_mem_rdy & d_mem_assert);
 
 front_end front(
     .clk ( clk ),
     .a_rst ( a_rst ),
-    .evt_int ( evt_int ),
-    .evt_int_ack ( evt_int_ack ),
+
+    .evt_rst ( evt_rst ),
+    .evt_nmi ( evt_nmi ),
+    .evt_nmi_ack ( evt_nmi_ack ),
+    .evt_irq ( evt_irq ),
+    .evt_irq_ack ( evt_irq_ack ),
+
     .i_mem_opcode ( i_mem_opcode ),
     .i_mem_rdy ( i_mem_rdy ),
+
     .ex_pc_w ( ex_pc_w ),
     .ex_pc ( ex_pc ),
-    .ex_feed_req ( ex_feed_req ),
-    .ex_feed_ack ( ex_feed_ack ),
-    .ex_sf ( ex_sf ),
+    .ex_feed_slot ( ex_feed_slot ),
+    .id_feed_req ( id_feed ),
+    .ex_sf ( sf[7:0] ),
     .ex_sf_wr ( ex_sf_wr ),
+
     .i_mem_pc ( i_mem_pc ),
-    .ex_uop_0 ( ex_uop_0 ),
-    .ex_uop_1 ( ex_uop_1 ),
-    .ex_uop_2 ( ex_uop_2 ),
-    .ex_uop_count ( ex_uop_count ),
-    .ex_k ( ex_k )
+    
+    .id_iop ( id_iop ),
+    .id_iop_init ( id_iop_init ),
+    .id_arg ( id_arg )
 );
+
+wire [2:0] rf_a_adr;
+wire [2:0] rf_b_adr;
+wire [15:0] rf_pc;
+wire [3:0] rf_d_adr; 
+
+wire [15:0] alu_t16;
+wire alu_wr_sf;
+wire alu_carry_mask;
+wire [3:0] alu_fn;
+wire alu_bypass_b;
+
+wire rmw_offload;
+
+wire [15:0] agu_offset;
+wire agu_zero_index;
+
+wire agu_mem_width;
+wire agu_mem_cmd;
+wire agu_src_tag;
+wire agu_mem_req;
+wire lsu_deny;
+wire lsu_result_tag;
+wire lsu_wb;
 
 scheduling_queue q(
-    input   wire        clk,
-    input   wire        a_rst,
-    
-    input   wire        id_feed,
-    input   wire[31:0]  id_iop,
-    input   wire[2:0]   id_iop_init,
-    input   wire[15:0]  id_pc,
-    input   wire[15:0]  id_k16,
-    output  wire        id_ack,
+    .clk ( clk ),
+    .a_rst ( a_rst ),
+
+    // ID <=> Queue
+    .id_feed ( id_feed ),
+    .id_iop ( id_iop ),
+    .id_iop_init ( id_iop_init ),
+    .id_pc ( i_mem_pc ),
+    .id_k16 ( id_arg ),
+    .id_req ( ex_feed_slot ),
     
     //RF during scheduling
-    output  wire[2:0]   rf_a_adr,
-    output  wire[2:0]   rf_b_adr,
+    .rf_a_adr ( rf_a_adr ),
+    .rf_b_adr ( rf_b_adr ),
+    .rf_pc ( rf_pc ),
     
     //ALU during execution
-    output  wire[15:0]  alu_t16,
-    output  wire        alu_wr_sf,
-    output  wire        alu_carry_mask,
-    output  wire[3:0]   alu_fn,
-    output  wire        alu_bypass_b,
+    .alu_t16 ( alu_t16 ),
+    .alu_wr_sf ( alu_wr_sf ),
+    .alu_carry_mask ( alu_carry_mask ),
+    .alu_fn ( alu_fn ),
+    .alu_bypass_b ( alu_bypass_b ),
     
     //RF during execution
-    output  wire[3:0]   rf_d_addr,
+    .rf_d_adr ( rf_d_adr ),
     
     //AGU interface
-    output  wire        agu_zero_index,
-    output  wire[15:0]  agu_offset,
+    .agu_zero_index ( agu_zero_index ),
+    .agu_offset ( agu_offset ),
     
     //LSU interface
-    output  wire        rmw_offload,
-    output  wire        lsu_rq_width,
-    output  wire        lsu_rq_cmd,
-    output  wire        lsu_rq_tag,
-    output  wire        lsu_rq_start,
-    input   wire        lsu_wait,
+    .rmw_offload  ( rmw_offload ),
+    .lsu_rq_width ( agu_mem_width ),
+    .lsu_rq_cmd   ( agu_mem_cmd ),
+    .lsu_rq_tag   ( agu_src_tag ),
+    .lsu_rq_start ( agu_mem_req ),
+    .lsu_wait     ( lsu_deny ),
     
     //LSU interface after load
-    input   wire[15:0]  lsu_data_in,
-    input   wire        lsu_data_tag,
-    input   wire        lsu_data_wb
+    .lsu_data_in ( d_mem_data_in ),
+    .lsu_data_tag ( lsu_result_tag ),
+    .lsu_data_wb ( lsu_wb )
 );
+
+wire sf_rmw_write;
+wire [15:0] sf_rmw;
+wire [15:0] sf_alu;
+
+wire [15:0] rf_a;
+wire [15:0] rf_b;
+wire [15:0] alu_result;
 
 regfile rf(
-    input   wire        clk,
+    .clk ( clk ),
     
     //R Station Interface
-    input   wire[2:0]   r_a_addr,
-    input   wire[2:0]   r_b_addr,
-    input   wire[15:0]  r_pc,
+    .r_a_addr ( rf_a_adr ),
+    .r_b_addr ( rf_b_adr ),
+    .r_pc ( rf_pc ),
     
     //ALU interface
-    input   wire[15:0]  alu_r,
-    input   wire[15:0]  alu_flags,
-    output  wire[15:0]  alu_a,
-    output  wire[15:0]  alu_b,
+    .alu_r ( alu_result ),
+    .alu_flags ( sf_alu ),
+    .alu_a ( rf_a ),
+    .alu_b ( rf_b ),
     
     //ALU rmw interface
-    input   wire[15:0]  rmw_flags,
-    input   wire        rmw_w_flags,
+    .rmw_flags ( sf_rmw ),
+    .rmw_w_flags ( sf_rmw_write ),
     
     //Control Interface
-    input   wire        dest_r_wr,
-    input   wire[1:0]   dest_r_addr,
-    input   wire        dest_w_flags,
+    .dest_r_wr ( rf_d_adr[3] ),
+    .dest_r_addr ( rf_d_adr[2:0] ),
+    .dest_w_flags ( alu_wr_sf & ~rmw_offload ),
     
     //Both ALU & ID
-    output  wire[15:0]  flags
+    .flags ( sf )
 );
 
+wire [1:0] rmw_fn = { alu_fn[3] & alu_fn[1], alu_fn[0] };
+wire rmw_start = rmw_offload & ex_rq_ack;
+
+wire [15:0] agu_addr;
+wire [15:0] rmw_addr;
+
+wire [15:0] agu_data;
+wire [15:0] rmw_data;
+wire rmw_data_rdy;
+wire rmw_deny_addr;
+
 alu_rwm rmw(
-    input   wire        clk,                // Clock
-    input   wire        a_rst,              // Async reset
+    .clk ( clk ),
+    .a_rst ( a_rst ),
     
-    input   wire[15:0]  agu_addr,           // AGU generated address
+    .agu_addr ( agu_addr ),                 // AGU generated address
     
-    input   wire        mem_rdy,            // Memory ready
-    input   wire[15:0]  mem_data_in,        // Memory Data in
+    .mem_rdy ( d_mem_rdy ),                 // Memory ready
+    .mem_data_in ( d_mem_data_in ),         // Memory Data in
     
-    input   wire[1:0]   sched_rmw_fn,       // Function to perform with the data
-    input   wire        sched_rmw,          // Start RMW operation, in parallel with the load ack of LSU
-    input   wire        sched_wr_flags,     // Write flags after operation
-    input   wire        sched_carry_mask,   // Carry Mask
+    .sched_rmw_fn ( rmw_fn ),               // Function to perform with the data
+    .sched_rmw ( rmw_start ),               // Start RMW operation, in parallel with the load ack of LSU
+    .sched_wr_flags ( alu_wr_sf ),          // Write flags after operation
+    .sched_carry_mask ( alu_carry_mask ),   // Carry Mask
     
-    input   wire[15:0]  rf_flags_in,        // Current flags
-    output  wire        rf_flags_wr,        // Write flags
-    output  wire[15:0]  rf_flags_out,       // Result flags from operation
+    .rf_flags_in ( sf ),                    // Current flags
+    .rf_flags_wr ( sf_rmw_write ),          // Write flags
+    .rf_flags_out ( sf_rmw ),               // Result flags from operation
     
-    input   wire        lsu_ack,            // LSU accepted write request
-    output  wire        lsu_deny_op,        // Deny any operations at the same address
-    output  wire[15:0]  lsu_data,           // Modified data for LSU
-    output  wire[15:0]  lsu_addr,           // Original address for LSU
-    output  wire        lsu_data_rdy        // Modified data is ready
+    .lsu_ack ( ex_rq_ack ),                 // LSU accepted write request
+    .lsu_deny_op ( rmw_deny_addr ),         // Deny any operations at the same address
+    .lsu_data ( rmw_data ),                 // Modified data for LSU
+    .lsu_addr ( rmw_addr ),                 // Original address for LSU
+    .lsu_data_rdy ( rmw_data_rdy )          // Modified data is ready
 );
 
 alu_16b alu(
-    input   wire        carry_mask,
-    input   wire[3:0]   alu_f,
+    .carry_mask ( alu_carry_mask ),
+    .alu_f ( alu_fn ),
     
     //Reg File interface
-    input   wire[15:0]  rf_a,
-    input   wire[15:0]  rf_b,
-    output  wire[15:0]  rf_d,
-    output  wire[15:0]  rf_sf,
+    .rf_sf ( sf ),
+    .rf_a ( rf_a ),
+    .rf_b ( rf_b ),
+    .rf_d ( alu_result ),
+    .rf_sf_n ( sf_alu ),
     
     //Scheduler interface
-    input   wire[15:0]  sched_t16,
-    input   wire[15:0]  sched_agu_t16,
-    input   wire        sched_bypass_b,
-    input   wire        sched_zero_index,
+    .sched_t16 ( alu_t16 ),
+    .sched_agu_t16 ( agu_offset ),
+    .sched_bypass_b ( alu_bypass_b ),
+    .sched_zero_index ( agu_zero_index ),
     
     //Load Store Interface
-    output  wire[15:0]  lsu_adr,
-    output  wire[15:0]  lsu_payload
+    .lsu_adr ( agu_addr ),
+    .lsu_payload ( agu_data )
 );
+
+assign ex_rq_addr = rmw_data_rdy ? rmw_addr : agu_addr;
+assign ex_rq_start = rmw_data_rdy | agu_mem_req & ~rmw_deny_addr;
+assign ex_rq_data = rmw_data_rdy ? rmw_data : agu_data;
+assign lsu_deny = ~ex_rq_ack | rmw_deny_addr;
 
 lsu_16b lsu(
     .clk ( clk ),
@@ -197,7 +258,9 @@ lsu_16b lsu(
     .be0 ( d_mem_be0 ),
     .be1 ( d_mem_be1 ),
     .mem_bus_assert ( d_mem_assert ),
-    .rq_ack ( ex_rq_ack )
+    .rq_ack ( ex_rq_ack ),
+    .rs_tag ( lsu_result_tag ),
+    .rs_wb ( lsu_wb )
 );
 
 endmodule

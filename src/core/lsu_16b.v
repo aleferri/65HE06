@@ -18,7 +18,8 @@ module lsu_16b(
     output  wire        be1,
     output  wire        mem_bus_assert,
     
-    output  wire        r_id_wr
+    output  wire        rs_wb,
+    output  wire        rs_tag
 );
 
 reg[15:0] address;
@@ -54,6 +55,7 @@ assign mem_cmd = command;
 assign be0 = ~mem_addr[0];
 assign be1 = mem_addr[0] | ~mem_addr[0] & ~width;
 assign mem_bus_assert = busy;
-assign r_id_wr = rs_t_id;
+assign rs_tag = rs_t_id;
+assign rs_tag_wr = mem_rdy & mem_cmd;
 
 endmodule

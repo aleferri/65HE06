@@ -219,11 +219,12 @@ always @(posedge clk or posedge a_rst) begin
     end
 end
 
+/*
 always @(*) begin
     assert( iop_status[0] == 1'b0 || iop_status[0] == 1'b1 );
     assert( iop_status[1] == 1'b0 || iop_status[1] == 1'b1 );
     assert( iop_status[2] == 1'b0 || iop_status[2] == 1'b1 );
     assert( r_ready == 1'b0 || r_ready == 1'b1 );
-end
+end*/
 
 endmodule

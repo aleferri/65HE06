@@ -19,7 +19,7 @@ module regfile(
     
     //Control Interface
     input   wire        dest_r_wr,
-    input   wire[1:0]   dest_r_addr,
+    input   wire[2:0]   dest_r_addr,
     input   wire        dest_w_flags,
     
     //Both ALU & ID

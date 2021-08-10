@@ -28,6 +28,7 @@ module station(
     output  wire        r_mask_carry,
     output  wire        r_mask_index,
     output  wire        r_save_flags,
+    output  wire[2:0]   r_save_flags_tag,
     output  wire        r_forward_to_rmw,
     output  wire        r_st_mem,
     output  wire        r_ld_mem,
@@ -92,9 +93,9 @@ wire is_status_store = iop_status == ST_STORE;
  * -----------------------------------
  * 04: mem_is_rmw           (STORE step)
  * 03: mem_width            (LOAD/STORE step)
- * 02: reserved
- * 01: reserved
- * 00: reserved
+ * 02: flags tag bit 2
+ * 01: flags tag bit 1
+ * 00: flags tag bit 0
  * -----------------------------------
  */
 
@@ -167,6 +168,7 @@ assign r_fn = ( is_status_load_0 | is_status_load_1 | is_status_store & ~iop[4])
 assign r_mask_carry = ~(~is_status_alu | iop[20]);
 
 assign r_save_flags = ( is_status_alu | offload_rmw ) & iop[21];
+assign r_save_flags_tag = iop[2:0];
 assign r_forward_to_rmw = offload_rmw;
 
 assign r_st_mem = is_status_store;

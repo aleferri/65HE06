@@ -2,36 +2,39 @@ module lsu_16b(
     input   wire        clk,
     input   wire        a_rst,
     
-    input   wire[15:0]  rq_addr,
-    input   wire[15:0]  rq_data,
-    input   wire        rq_width,
-    input   wire        rq_cmd,
-    input   wire        rq_t_id,
-    input   wire        rq_start,
-    output  wire        rq_ack,
+    // Request interface
+    input   wire[15:0]  rq_addr,    // Request memory address
+    input   wire[15:0]  rq_data,    // Data to write
+    input   wire        rq_width,   // Bus Width: 0: 16 bit, 1: 8 bit
+    input   wire        rq_cmd,     // Command, 0: read, 1: write
+    input   wire[1:0]   rq_tag,     // Tag of the request
+    input   wire        rq_start,   // Start request with parameters
+    output  wire        rq_hold,    // Hold any incoming request
     
+    // Memory
     input   wire        mem_rdy,
     output  wire[15:0]  mem_addr,
     output  wire[15:0]  mem_data,
     output  wire        mem_cmd,
     output  wire        be0,
     output  wire        be1,
-    output  wire        mem_bus_assert,
+    output  wire        mem_assert,
     
+    // Reservations Stations
     output  wire        rs_wb,
-    output  wire        rs_tag
+    output  wire[1:0]   rs_tag
 );
 
 reg[15:0] address;
 reg[15:0] data;
 reg command;
 reg width;
-reg rs_t_id;
+reg[1:0] tag;
 
 reg busy;
 
+wire accept_rq = ( ~busy | mem_rdy ) & rq_start;
 wire next_busy = busy & ~mem_rdy | rq_start;
-assign rq_ack = (busy & mem_rdy | ~busy) & rq_start;
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
@@ -42,20 +45,22 @@ always @(posedge clk or negedge a_rst) begin
 end
 
 always @(posedge clk) begin
-    address <= rq_ack ? rq_addr : address;
-    data <= rq_ack ? rq_data : data;
-    width <= rq_ack ? rq_width : width;
-    command <= rq_ack ? rq_cmd : command;
-    rs_t_id <= rq_ack ? rq_t_id : rs_t_id;
+    address <= accept_rq ? rq_addr : address;
+    data <= accept_rq ? rq_data : data;
+    width <= accept_rq ? rq_width : width;
+    command <= accept_rq ? rq_cmd : command;
+    tag <= accept_rq ? rq_tag : tag;
 end
+
+assign rq_hold = busy & ~mem_rdy;
 
 assign mem_addr = address;
 assign mem_data = data;
 assign mem_cmd = command;
 assign be0 = ~mem_addr[0];
 assign be1 = mem_addr[0] | ~mem_addr[0] & ~width;
-assign mem_bus_assert = busy;
-assign rs_tag = rs_t_id;
+assign mem_assert = busy;
+assign rs_tag = tag;
 assign rs_tag_wr = mem_rdy & mem_cmd;
 
 endmodule

@@ -10,14 +10,16 @@ module alu_rwm(
     
     input   wire[1:0]   sched_rmw_fn,       // Function to perform with the data
     input   wire        sched_rmw,          // Start RMW operation, in parallel with the load ack of LSU
-    input   wire        sched_wr_flags,     // Write flags after operation
+    input   wire        sched_flags_wr,     // Write flags after operation
+    input   wire        sched_flags_tag,    // Tag for flags result
     input   wire        sched_carry_mask,   // Carry Mask
     
     input   wire[15:0]  rf_flags_in,        // Current flags
     output  wire        rf_flags_wr,        // Write flags
     output  wire[15:0]  rf_flags_out,       // Result flags from operation
+    output  wire[2:0]   rf_flags_tag,       // Tag for flags register
     
-    input   wire        lsu_ack,            // LSU accepted write request
+    input   wire        lsu_hold,           // LSU accepted write request
     output  wire        lsu_deny_op,        // Deny any operations at the same address
     output  wire[15:0]  lsu_data,           // Modified data for LSU
     output  wire[15:0]  lsu_addr,           // Original address for LSU
@@ -35,7 +37,7 @@ always @(posedge clk or posedge a_rst) begin
         phase = 1'b0;
     end else begin
         if ( rmw ) begin
-            rmw <= ~phase | ~lsu_ack;
+            rmw <= ~phase | lsu_hold;
             phase <= mem_rdy;
         end else begin
             rmw <= sched_rmw;
@@ -49,13 +51,15 @@ reg[15:0] data;
 reg[1:0] rmw_fn;
 reg carry_mask;
 reg wr_flags;
+reg[2:0] flags_tag;
 
 always @(posedge clk) begin
     data <= mem_rdy ? mem_data_in : data;
     addr <= sched_rmw ? agu_addr : addr;
     rmw_fn <= sched_rmw ? sched_rmw_fn : rmw_fn;
-    wr_flags <= sched_rmw ? sched_wr_flags : wr_flags;
+    wr_flags <= sched_rmw ? sched_flags_wr : wr_flags;
     carry_mask <= sched_rmw ? sched_carry_mask : carry_mask;
+    flags_tag <= sched_rmw ? sched_flags_tag : flags_tag;
 end
 
 // Combinatory Logic
@@ -92,6 +96,7 @@ end
 
 assign rf_flags_out = { rf_flags_in[15:5], acquired, rf_flags_in[3], rf_flags_in[2], zero, carry };
 assign rf_flags_wr = wr_flags;
+assign rf_flags_tag = flags_tag;
 assign lsu_data = result;
 assign lsu_addr = addr;
 assign lsu_data_rdy = phase;

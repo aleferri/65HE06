@@ -17,7 +17,8 @@ module scheduling_queue(
     
     //ALU during execution
     output  wire[15:0]  alu_t16,
-    output  wire        alu_wr_sf,
+    output  wire        alu_sf_wr,
+    output  wire[2:0]   alu_sf_tag,
     output  wire        alu_carry_mask,
     output  wire[3:0]   alu_fn,
     output  wire        alu_bypass_b,
@@ -39,7 +40,7 @@ module scheduling_queue(
     
     //LSU interface after load
     input   wire[15:0]  lsu_data_in,
-    input   wire        lsu_data_tag,
+    input   wire[1:0]   lsu_data_tag,
     input   wire        lsu_data_wb
 );
 
@@ -100,6 +101,8 @@ wire[2:0] rsa_lock_reg_rd_0, rsb_lock_reg_rd_0;
 wire[2:0] rsa_lock_reg_rd_1, rsb_lock_reg_rd_1;
 wire[2:0] rsa_lock_reg_rd_2, rsb_lock_reg_rd_2;
 
+wire[2:0] rsa_save_flags_tag, rsb_save_flags_tag;
+
 assign id_req = is_rsa_done | is_rsb_done;
 
 station rsa(
@@ -116,7 +119,7 @@ station rsa(
     
     //LSU Interface
     .lsu_data ( lsu_data_in ),
-    .lsu_wb ( lsu_data_wb & ~lsu_data_tag ),
+    .lsu_wb ( lsu_data_wb & ~lsu_data_tag[1] & ~lsu_data_tag[0] ),
     
     //Scheduler Interface
     .r_ready ( rsa_ready ),
@@ -131,6 +134,7 @@ station rsa(
     .r_mask_carry ( rsa_mask_carry ),
     .r_mask_index ( rsa_mask_index ),
     .r_save_flags ( rsa_save_flags ),
+    .r_save_flags_tag ( rsa_save_flags_tag ),
     .r_forward_to_rmw ( rsa_start_rmw ),
     .r_st_mem ( rsa_st_mem ),
     .r_ld_mem ( rsa_ld_mem ),
@@ -158,7 +162,7 @@ station rsb(
     
     //LSU Interface
     .lsu_data ( lsu_data_in ),
-    .lsu_wb ( lsu_data_wb & lsu_data_tag ),
+    .lsu_wb ( lsu_data_wb & ~lsu_data_tag[1] & lsu_data_tag[0] ),
     
     //Scheduler Interface
     .r_ready ( rsb_ready ),
@@ -173,6 +177,7 @@ station rsb(
     .r_mask_carry ( rsb_mask_carry ),
     .r_mask_index ( rsb_mask_index ),
     .r_save_flags ( rsb_save_flags ),
+    .r_save_flags_tag ( rsb_save_flags_tag ),
     .r_forward_to_rmw ( rsb_start_rmw ),
     .r_st_mem ( rsb_st_mem ),
     .r_ld_mem ( rsb_ld_mem ),
@@ -212,7 +217,8 @@ assign rf_pc = rs_sched_adr ? rsb_pc : rsa_pc;
 // Muxes
 wire r_ready = rs_sched_adr ? rsb_ready : rsa_ready;
 wire[15:0] r_alu_t16 = rs_sched_adr ? rsb_k16 : rsa_k16;
-wire r_alu_wr_sf = rs_sched_adr ? rsb_save_flags : rsa_save_flags;
+wire r_alu_sf_wr = rs_sched_adr ? rsb_save_flags : rsa_save_flags;
+wire[2:0] r_sf_tag = rs_sched_adr ? rsb_save_flags_tag : rsa_save_flags_tag;
 wire r_alu_carry_mask = rs_sched_adr ? rsb_mask_carry : rsa_mask_carry;
 wire[3:0] r_alu_fn = rs_sched_adr ? rsb_fn : rsa_fn;
 wire r_alu_bypass_b = rs_sched_adr ? rsb_bypass_b : rsa_bypass_b;
@@ -230,7 +236,7 @@ wire r_lsu_ld_mem = rs_sched_adr ? rsb_ld_mem : rsa_ld_mem;
 wire r_lsu_tag = rs_sched_adr;
 
 // Scheduled part
-reg[17:0] front;
+reg[20:0] front;
 reg[15:0] front_k16;
 reg[15:0] front_offset16;
 
@@ -238,7 +244,7 @@ always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
         front = 18'b0;
     end else begin
-        front = lsu_wait ? front : { r_ready, r_alu_wr_sf, r_alu_carry_mask, r_alu_fn, r_alu_bypass_b, r_d_adr, r_agu_zero_index, r_rmw_offload, r_lsu_width, r_lsu_st_mem, r_lsu_ld_mem, r_lsu_tag };
+        front = lsu_wait ? front : { r_sf_tag, r_ready, r_alu_sf_wr, r_alu_carry_mask, r_alu_fn, r_alu_bypass_b, r_d_adr, r_agu_zero_index, r_rmw_offload, r_lsu_width, r_lsu_st_mem, r_lsu_ld_mem, r_lsu_tag };
     end
 end
 
@@ -248,7 +254,8 @@ always @(posedge clk) begin
 end
 
 assign alu_t16 = front_k16;
-assign alu_wr_sf = front[ 16 ] & front[ 17 ] & ~lsu_wait & ~front[ 4 ];
+assign alu_sf_wr = front[ 16 ] & front[ 17 ] & ~lsu_wait & ~front[ 4 ];
+assign alu_sf_tag = front[20:18];
 assign alu_carry_mask = front[ 15 ];
 assign alu_fn = front[14:11];
 assign alu_bypass_b = front[10];

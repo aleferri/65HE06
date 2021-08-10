@@ -53,7 +53,7 @@ cpu_status status(
     .op_stp (id_is_stp),
     .op_rti (id_is_rti),
     
-    .feed_ack( id_feed_req & ex_feed_slot ),
+    .ex_free_slot ( ex_feed_slot ),
     
     .sf_rdy ( ex_sf_wr ),
     .sf_busy ( id_iop[21] ),
@@ -77,8 +77,8 @@ wire[15:0] fu_arg;
 wire[15:0] fu_ir;
 wire fu_ready_ir;
 
-assign hold_fetch = cs_hold_fetch | ~i_mem_rdy | ( fu_ready_ir & ~ex_feed_slot );           // flags hazards are handled by cpu_status
-assign hold_decode = cs_hold_decode | ( ~fu_ready_ir & ~id_swap_ir ) | ~ex_feed_slot;       // flags hazards are handled by cpu_status
+wire hold_fetch = cs_hold_fetch | ~i_mem_rdy | ( fu_ready_ir & ~ex_feed_slot );           // flags hazards are handled by cpu_status
+wire hold_decode = cs_hold_decode | ( ~fu_ready_ir & ~id_swap_ir ) | ~ex_feed_slot;       // flags hazards are handled by cpu_status
 
 assign i_mem_pc = pc;
 

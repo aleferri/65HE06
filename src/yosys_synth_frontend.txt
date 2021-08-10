@@ -1,6 +1,7 @@
 read_verilog ./core/front_end.v
 read_verilog ./core/fetch_unit.v
 read_verilog ./core/decode_unit.v
+read_verilog ./core/cpu_status.v
 hierarchy -check -top front_end
 proc; opt; fsm; opt; memory; opt
 flatten

@@ -16,8 +16,8 @@ module cpu_status(
     input   wire        op_stp,     // wait for reset
     input   wire        op_rti,     // unmask irq
     
-    // opcode fed
-    input   wire        feed_ack,
+    // opcode can be issued to back end
+    input   wire        ex_free_slot,
     
     // sf handling
     input   wire        sf_query,   // sf is requested, stall decode if sf is not stable
@@ -85,9 +85,9 @@ wire is_interrupt = nmi | rst | irq_masked | brk;
 always @(*) begin
     case (proc_status)
     3'b000: next_proc_status = 3'b001;
-    3'b001: next_proc_status = feed_ack ? 3'b010 : proc_status;
-    3'b010: next_proc_status = feed_ack ? 3'b011 : proc_status;
-    3'b011: next_proc_status = ( sf_status & sf_query ) ? 3'b100 : ( is_interrupt & feed_ack | op_wai | op_stp ) ? { op_wai | op_stp, op_stp, 1'b1 } : proc_status;
+    3'b001: next_proc_status = ex_free_slot ? 3'b010 : proc_status;
+    3'b010: next_proc_status = ex_free_slot ? 3'b011 : proc_status;
+    3'b011: next_proc_status = ( sf_status & sf_query ) ? 3'b100 : ( is_interrupt & ex_free_slot | op_wai | op_stp ) ? { op_wai | op_stp, op_stp, 1'b1 } : proc_status;
     3'b100: next_proc_status = { ~sf_rdy, sf_rdy, sf_rdy };
     3'b101: next_proc_status = rst ? 3'b001 : proc_status;
     3'b110: next_proc_status = is_interrupt ? 3'b000 : proc_status;

@@ -37,6 +37,7 @@ wire [15:0] ex_rq_addr;
 wire [15:0] ex_rq_data;
 wire ex_rq_width;
 wire ex_rq_cmd;
+wire ex_rq_hold;
 wire [1:0] ex_rq_tag;
 wire ex_rq_start;
 
@@ -74,7 +75,7 @@ front_end front(
 
 reg [2:0] flags_id_next;
 
-always @(id_iop) begin
+always @(*) begin
     flags_id_next = flags_id + ( id_iop[21] & id_feed );
 end
 
@@ -103,6 +104,7 @@ wire [3:0] alu_fn;
 wire alu_bypass_b;
 
 wire rmw_offload;
+wire conflict_sf;
 
 wire [15:0] agu_offset;
 wire agu_zero_index;
@@ -144,7 +146,8 @@ scheduling_queue q(
     .alu_bypass_b   ( alu_bypass_b ),
     
     //RF during execution
-    .rf_d_adr ( rf_d_adr ),
+    .sf_conflict ( conflict_sf ),
+    .rf_d_adr    ( rf_d_adr ),
     
     //AGU interface
     .agu_zero_index ( agu_zero_index ),
@@ -194,6 +197,7 @@ regfile rf(
     .alu_d_wr  ( rf_d_adr[3] ),
     .alu_d_adr ( rf_d_adr[2:0] ),
     .alu_sf_wr ( alu_sf_wr & ~rmw_offload ),
+    .conflict_sf ( conflict_sf ),
     
     //Both ALU & ID
     .flags ( sf )
@@ -224,7 +228,7 @@ alu_rwm rmw(
     .sched_rmw_fn ( rmw_fn ),               // Function to perform with the data
     .sched_rmw ( rmw_start ),               // Start RMW operation, in parallel with the load ack of LSU
     .sched_flags_wr ( alu_sf_wr ),          // Write flags after operation
-    .sched_flags_tag ( alu_sf_tag ),
+    .sched_flags_tag ( sf_alu_tag ),
     .sched_carry_mask ( alu_carry_mask ),   // Carry Mask
     
     .rf_flags_in ( sf ),                    // Current flags

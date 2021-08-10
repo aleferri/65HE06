@@ -27,9 +27,6 @@ module alu_16b(
  * 
  **/
 
-
-wire is_sub = ~alu_f[3] & ~alu_f[2] & alu_f[1] & ~alu_f[0];
-wire is_dep = ~alu_f[3] & ~alu_f[2] & alu_f[1] & alu_f[0];
 wire has_v = ~alu_f[3] & ~alu_f[2];
 
 reg[15:0] result_val;
@@ -172,7 +169,7 @@ always @(*) begin
     //  LDF
     4'b1110: { result_val, flags_high, acquired, negative, zero, overflow, carry } = { rf_sf, rf_sf };
     //  STF
-    4'b1111: { result_val, flags_high, acquired, negative, zero, overflow, carry } = { result_val, result_val };
+    4'b1111: { result_val, flags_high, acquired, negative, zero, overflow, carry } = { alu_a, alu_a };
     endcase
     
     address_val = agu_a + agu_b;

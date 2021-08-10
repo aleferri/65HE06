@@ -24,6 +24,7 @@ module scheduling_queue(
     output  wire        alu_bypass_b,
     
     //RF during execution
+    input   wire        sf_conflict, // Two units are trying to write SF, ALU fail and operation must be repeated
     output  wire[3:0]   rf_d_adr,
     
     //AGU interface
@@ -269,6 +270,6 @@ assign rmw_offload = front[ 4 ];
 assign lsu_rq_width = front[ 3 ];
 assign lsu_rq_cmd = front[ 2 ];
 assign lsu_rq_tag = front[ 0 ];
-assign lsu_rq_start = front[ 2 ] | front[ 1 ];
+assign lsu_rq_start = ( front[ 2 ] | front[ 1 ] ) & ~sf_conflict;
 
 endmodule

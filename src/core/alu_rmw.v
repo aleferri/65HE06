@@ -11,7 +11,7 @@ module alu_rwm(
     input   wire[1:0]   sched_rmw_fn,       // Function to perform with the data
     input   wire        sched_rmw,          // Start RMW operation, in parallel with the load ack of LSU
     input   wire        sched_flags_wr,     // Write flags after operation
-    input   wire        sched_flags_tag,    // Tag for flags result
+    input   wire[2:0]   sched_flags_tag,    // Tag for flags result
     input   wire        sched_carry_mask,   // Carry Mask
     
     input   wire[15:0]  rf_flags_in,        // Current flags

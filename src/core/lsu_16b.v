@@ -61,6 +61,6 @@ assign be0 = ~mem_addr[0];
 assign be1 = mem_addr[0] | ~mem_addr[0] & ~width;
 assign mem_assert = busy;
 assign rs_tag = tag;
-assign rs_tag_wr = mem_rdy & mem_cmd;
+assign rs_wb = mem_rdy & mem_cmd;
 
 endmodule

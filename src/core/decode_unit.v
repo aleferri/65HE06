@@ -5,6 +5,7 @@ module decode_unit(
     // cpu status control
     input   wire        hold,
     input   wire        clr_idx,
+    output  wire        sf_query,
     output  wire        op_rti,
     output  wire        op_stp,
     output  wire        op_wai,
@@ -139,25 +140,13 @@ assign op_rti = is_rti;
 assign op_stp = is_stp;
 assign op_wai = is_wai;
 
-reg[1:0] status;
-
 wire is_pc_dest = ( field_reg_0 == 3'b011 ) & ~is_sta;
-wire is_pc_update = ( is_pc_dest | is_predicated_op ) & ( status == 2'b00 );
 
-assign br_taken = is_predicated_op & is_taken_pred | is_bsr;
-assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred;
-assign pc_inv = is_pc_dest & ~( is_predicated_op & is_taken_pred & is_addcc_imm );
+assign br_taken = ( is_predicated_op & is_taken_pred | is_bsr ) & ~hold;
+assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred & ~hold;
+assign pc_inv = is_pc_dest & ~( is_predicated_op & is_taken_pred & is_addcc_imm ) & ~hold;
 
-wire bit_0_active = ( status == 2'b00 ) & is_predicated_op | ~is_taken_pred & ( status == 2'b11 );
-wire bit_1_active = is_pc_update | ~status[ 1 ];
-
-always @(posedge clk or negedge a_rst) begin
-    if ( ~a_rst ) begin
-        status = 2'b0;
-    end else begin
-        status <= hold ? status : { bit_1_active, bit_0_active };
-    end
-end
+assign sf_query = is_predicated_op;
 
 /**
  * Internal OPeration fields:

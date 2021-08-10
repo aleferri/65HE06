@@ -30,7 +30,7 @@ wire id_is_brk;
 wire id_is_wai;
 wire id_is_stp;
 wire id_is_rti;
-wire id_feed_ack;
+wire id_sf_query;
 wire [15:0] cs_opcode;
 wire [15:0] cs_arg;
 wire id_swap_ir;
@@ -41,20 +41,27 @@ wire cs_hold_decode;
 cpu_status status(
     .clk ( clk ),
     .a_rst ( a_rst ),
+    
     .nmi ( evt_nmi ),
     .irq ( evt_irq ),
     .rst ( evt_rst ),
     .brk ( id_is_brk ),
+    .nmi_ack ( evt_nmi_ack ),
+    .irq_ack ( evt_irq_ack ),
+    
     .op_wai (id_is_wai),
     .op_stp (id_is_stp),
     .op_rti (id_is_rti),
-    .feed_ack(id_feed_ack),
+    
+    .feed_ack( id_feed_req & ex_feed_slot ),
+    
     .sf_rdy ( ex_sf_wr ),
     .sf_busy ( id_iop[21] ),
+    .sf_query ( id_sf_query ),
+    
     .int_ir (cs_opcode),
     .int_k (cs_arg),
-    .nmi_ack ( evt_nmi_ack ),
-    .irq_ack ( evt_irq_ack ),
+    
     .replace_ir ( id_swap_ir ),
     .replace_k ( id_swap_arg ),
     .hold_fetch ( cs_hold_fetch ),
@@ -70,8 +77,8 @@ wire[15:0] fu_arg;
 wire[15:0] fu_ir;
 wire fu_ready_ir;
 
-assign hold_fetch = cs_hold_fetch | ~i_mem_rdy | ( fu_ready_ir & ~ex_feed_slot ); // flags hazards are handled by cpu_status
-assign hold_decode = cs_hold_decode | ~fu_ready_ir | ~ex_feed_slot;               // flags hazards are handled by cpu_status
+assign hold_fetch = cs_hold_fetch | ~i_mem_rdy | ( fu_ready_ir & ~ex_feed_slot );           // flags hazards are handled by cpu_status
+assign hold_decode = cs_hold_decode | ( ~fu_ready_ir & ~id_swap_ir ) | ~ex_feed_slot;       // flags hazards are handled by cpu_status
 
 assign i_mem_pc = pc;
 
@@ -109,6 +116,7 @@ decode_unit decode(
     // cpu status control
     .hold ( hold_fetch ),
     .clr_idx ( id_swap_ir ),
+    .sf_query ( id_sf_query ),
     .op_rti ( id_is_rti ),
     .op_stp ( id_is_stp ),
     .op_wai ( id_is_wai ),
@@ -119,7 +127,7 @@ decode_unit decode(
     .pc_inv ( de_pc_inv ),
     .pc_inc ( de_pc_inc ),
     
-    // alu
+    // rf
     .sf ( ex_sf ),
     
     // scheduling queue

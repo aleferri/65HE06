@@ -2,22 +2,36 @@
 module cpu_status(
     input   wire        clk,
     input   wire        a_rst,
+    
+    // interrupts
     input   wire        nmi,
     input   wire        irq,
     input   wire        brk,
     input   wire        rst,
-    input   wire        op_wai,
-    input   wire        op_stp,
-    input   wire        op_rti,
-    input   wire        feed_ack,
-    input   wire        sf_rdy,
-    input   wire        sf_busy,
-    output  wire[15:0]  int_ir,
-    output  wire[15:0]  int_k,
     output  wire        nmi_ack,
     output  wire        irq_ack,
+    
+    // opcodes that specifically affect cpu status
+    input   wire        op_wai,     // wait for interrupt
+    input   wire        op_stp,     // wait for reset
+    input   wire        op_rti,     // unmask irq
+    
+    // opcode fed
+    input   wire        feed_ack,
+    
+    // sf handling
+    input   wire        sf_query,   // sf is requested, stall decode if sf is not stable
+    input   wire        sf_busy,    // sf is busy
+    input   wire        sf_rdy,     // sf busy flag is cleared
+    
+    // issue alternative ir + arg
+    output  wire[15:0]  int_ir,
+    output  wire[15:0]  int_k,
+    
     output  wire        replace_ir,
     output  wire        replace_k,
+    
+    // control front end units
     output  wire        hold_fetch,
     output  wire        hold_decode
 );
@@ -28,6 +42,16 @@ parameter INT_VEC_BASE = 14'b1111_1111_1111_11;
 // FFFC-FFFD : RST 10
 // FFFA-FFFB : NMI 01
 // FFF8-FFF9 : BRK 00
+
+reg sf_status; // 1'b0: ready, 1'b1: busy
+
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
+        sf_status = 1'b0;
+    end else begin
+        sf_status <= sf_status ? ( ~sf_rdy | sf_busy ) : sf_busy;
+    end
+end
 
 /**
  * States:
@@ -63,7 +87,7 @@ always @(*) begin
     3'b000: next_proc_status = 3'b001;
     3'b001: next_proc_status = feed_ack ? 3'b010 : proc_status;
     3'b010: next_proc_status = feed_ack ? 3'b011 : proc_status;
-    3'b011: next_proc_status = sf_busy ? 3'b100 : ( is_interrupt & feed_ack | op_wai | op_stp ) ? { op_wai | op_stp, op_stp, 1'b1 } : proc_status;
+    3'b011: next_proc_status = ( sf_status & sf_query ) ? 3'b100 : ( is_interrupt & feed_ack | op_wai | op_stp ) ? { op_wai | op_stp, op_stp, 1'b1 } : proc_status;
     3'b100: next_proc_status = { ~sf_rdy, sf_rdy, sf_rdy };
     3'b101: next_proc_status = rst ? 3'b001 : proc_status;
     3'b110: next_proc_status = is_interrupt ? 3'b000 : proc_status;

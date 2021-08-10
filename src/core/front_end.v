@@ -26,7 +26,7 @@ module front_end(
     output  wire[15:0]  id_arg
 );
 
-wire id_is_brk;
+wire id_is_brk = 1'b0; //TODO: implement brk
 wire id_is_wai;
 wire id_is_stp;
 wire id_is_rti;
@@ -114,7 +114,7 @@ decode_unit decode(
     .a_rst ( a_rst ),
     
     // cpu status control
-    .hold ( hold_fetch ),
+    .hold ( hold_decode ),
     .clr_idx ( id_swap_ir ),
     .sf_query ( id_sf_query ),
     .op_rti ( id_is_rti ),

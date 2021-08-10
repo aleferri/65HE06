@@ -95,7 +95,7 @@ always @(*) begin
 end
 
 assign rf_flags_out = { rf_flags_in[15:5], acquired, rf_flags_in[3], rf_flags_in[2], zero, carry };
-assign rf_flags_wr = wr_flags;
+assign rf_flags_wr = wr_flags & phase;
 assign rf_flags_tag = flags_tag;
 assign lsu_data = result;
 assign lsu_addr = addr;

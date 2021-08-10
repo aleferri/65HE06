@@ -207,7 +207,7 @@ wire rsb_no_conflict_b = (rsb_b_adr != rsa_lock_reg_wr);
 wire rsb_no_conflict_sf = ~rsb_save_flags | rsb_save_flags & ~rsa_save_flags;
 wire rsb_sched = ~rsb_order | rsb_order & rsb_ready & ~rsa_ready & rsb_no_conflict_mem & rsb_no_conflict_d & rsb_no_conflict_a & rsb_no_conflict_b & rsb_no_conflict_sf;
 
-assign rs_sched_adr = ~rsa_sched | rsb_sched;
+assign rs_sched_adr = ~rsa_sched & rsb_sched;
 assign sched_rsa_order_next = rsa_order ^ ( rsa_will_complete & rsa_sched | rsb_will_complete & rsb_sched );
 assign sched_rsb_order_next = ~sched_rsa_order_next;
 
@@ -240,12 +240,15 @@ wire r_lsu_tag = rs_sched_adr;
 reg[20:0] front;
 reg[15:0] front_k16;
 reg[15:0] front_offset16;
+reg front_rst_delay;
 
 always @(posedge clk or negedge a_rst) begin
     if ( ~a_rst ) begin
         front = 18'b0;
+        front_rst_delay = 1'b0;
     end else begin
-        front = lsu_wait ? front : { r_sf_tag, r_ready, r_alu_sf_wr, r_alu_carry_mask, r_alu_fn, r_alu_bypass_b, r_d_adr, r_agu_zero_index, r_rmw_offload, r_lsu_width, r_lsu_st_mem, r_lsu_ld_mem, r_lsu_tag };
+        front_rst_delay <= 1'b1;
+        front <= lsu_wait & front_rst_delay ? front : { r_sf_tag, r_ready & front_rst_delay, r_alu_sf_wr, r_alu_carry_mask, r_alu_fn, r_alu_bypass_b, r_d_adr, r_agu_zero_index, r_rmw_offload, r_lsu_width, r_lsu_st_mem, r_lsu_ld_mem, r_lsu_tag };
     end
 end
 
@@ -270,6 +273,6 @@ assign rmw_offload = front[ 4 ];
 assign lsu_rq_width = front[ 3 ];
 assign lsu_rq_cmd = front[ 2 ];
 assign lsu_rq_tag = front[ 0 ];
-assign lsu_rq_start = ( front[ 2 ] | front[ 1 ] ) & ~sf_conflict;
+assign lsu_rq_start = ( front[ 2 ] | front[ 1 ] ) & ~sf_conflict & front[17];
 
 endmodule

@@ -35,7 +35,7 @@ module cpu_status(
     output  wire        hold_fetch,
     output  wire        hold_decode
 );
-parameter INT_VEC_BASE = 14'b1111_1111_1111_11;
+parameter INT_VEC_BASE = 13'b1111_1111_1111_1;
 
 // Reset Vector
 // FFFE-FFFF : IRQ 11
@@ -80,7 +80,8 @@ reg irq_mask;
 reg[2:0] proc_status;
 reg[2:0] next_proc_status;
 
-wire is_interrupt = nmi | rst | irq_masked | brk;
+wire is_interrupt;
+wire irq_masked;
 
 always @(*) begin
     case (proc_status)
@@ -112,27 +113,31 @@ always @(posedge clk or negedge a_rst) begin
     end
 end
 
-wire irq_masked = irq & ~mask_irq;
+assign irq_masked = irq & ~mask_irq;
+assign is_interrupt = nmi | rst | irq_masked | brk;
 
 reg was_irq;
 reg was_rst;
 reg was_nmi;
 reg was_brk;
 
+wire is_power_up_state = ( proc_status === 3'b000 );
+wire is_rst_signal = rst | is_power_up_state;
+
 always @(posedge clk) begin
-    was_irq <= ( proc_status == 3'b011 ) ? irq : was_irq;
-    was_rst <= ( proc_status == 3'b011 ) ? rst : was_rst | (proc_status == 3'b000);
-    was_nmi <= ( proc_status == 3'b011 ) ? nmi : was_nmi;
-    was_brk <= ( proc_status == 3'b011 ) ? brk : was_brk;
+    was_irq <= ( next_proc_status == 3'b001 ) ? irq : was_irq;
+    was_rst <= ( next_proc_status == 3'b001 ) ? is_rst_signal : was_rst;
+    was_nmi <= ( next_proc_status == 3'b001 ) ? nmi : was_nmi;
+    was_brk <= ( next_proc_status == 3'b001 ) ? brk : was_brk;
 end
 
 assign int_ir = was_rst ? { 8'b00010_011, 8'b0010_1100 } : 16'b10000_011_0010_00_10;
-assign int_k = { INT_VEC_BASE, was_rst | was_irq, was_nmi | was_irq };
+assign int_k = { INT_VEC_BASE, was_rst | was_irq, was_nmi | was_irq, 1'b0 };
 assign irq_ack = ( next_proc_status == 3'b001 ) & was_irq;
 assign nmi_ack = ( next_proc_status == 3'b001 ) & was_nmi;
 assign replace_ir = ( proc_status == 3'b001 );
 assign replace_k = ( proc_status == 3'b001 );
 assign hold_fetch = ( next_proc_status != 3'b011 );
-assign hold_decode = ( next_proc_status != 3'b001 ) & (next_proc_status != 3'b011);
+assign hold_decode = ( next_proc_status != 3'b010 ) & (next_proc_status != 3'b011);
 
 endmodule

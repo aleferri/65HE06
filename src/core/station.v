@@ -109,14 +109,16 @@ always @(posedge clk) begin
     iop_pc <= id_feed ? id_pc : iop_pc;
 end
 
+wire[1:0] load_k16 = { lsu_wb, id_feed };
+
 reg[15:0] iop_k16;
 
 always @(posedge clk) begin
-    case({lsu_wb, id_feed})
-    2'b00: iop_k16 <= iop_k16;
-    2'b01: iop_k16 <= id_k16;
-    2'b10: iop_k16 <= lsu_data;
-    2'b11: iop_k16 <= id_k16;
+    case(load_k16)
+    2'b00: iop_k16 = iop_k16;
+    2'b01: iop_k16 = id_k16;
+    2'b10: iop_k16 = lsu_data;
+    2'b11: iop_k16 = id_k16;
     endcase
 end
 
@@ -204,8 +206,8 @@ end
 
 assign r_will_complete = ( iop_status[0] | iop_status[1] | iop_status[2] ) & ~( next_status[0] | next_status[1] | next_status[2] ); 
 
-always @(posedge clk or posedge a_rst) begin
-    if ( a_rst ) begin
+always @(posedge clk or negedge a_rst) begin
+    if ( ~a_rst ) begin
         iop_status = 3'b000;
     end else begin
         case (iop_status)

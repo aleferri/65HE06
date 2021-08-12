@@ -2,12 +2,13 @@ read_verilog ./core/core.v
 read_verilog ./core/front_end.v
 read_verilog ./core/fetch_unit.v
 read_verilog ./core/decode_unit.v
-read_verilog ./core/ucore.v
+read_verilog ./core/cpu_status.v
 read_verilog ./core/alu_16b.v
-read_verilog ./core/r_station.v
-read_verilog ./core/scheduler.v
-read_verilog ./core/uop_executing.v
+read_verilog ./core/alu_rmw.v
 read_verilog ./core/lsu_16b.v
+read_verilog ./core/regfile.v
+read_verilog ./core/scheduling_queue.v
+read_verilog ./core/station.v
 hierarchy -check -top core
 proc; opt; fsm; opt; memory; opt
 flatten

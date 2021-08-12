@@ -2,10 +2,14 @@
 module perf_indexed;
 
 reg clk;
-reg[15:0] clock_count;
 reg rst;
-wire evt_int = 1'b0;
-wire evt_int_ack;
+reg[15:0] clock_count;
+
+wire evt_irq = 1'b0;
+wire evt_irq_ack;
+wire evt_nmi = 1'b0;
+wire evt_nmi_ack;
+wire evt_rst = 1'b0;
 
 reg[15:0] i_bank[0:63];
 reg[31:0] opc;
@@ -57,11 +61,17 @@ end
 core dut(
     .clk ( clk ),
     .a_rst ( rst ),
-    .evt_int ( evt_int ),
-    .evt_int_ack ( evt_int_ack ),
+    
+    .evt_rst ( evt_rst ),
+    .evt_nmi ( evt_nmi ),
+    .evt_nmi_ack ( evt_nmi_ack ),
+    .evt_irq ( evt_irq ),
+    .evt_irq_ack ( evt_irq_ack ),
+    
     .i_mem_opcode ( opc ),
     .i_mem_rdy ( i_mem_rdy ),
     .i_mem_pc ( pc ),
+    
     .d_mem_rdy ( d_mem_rdy ),
     .d_mem_data_in ( d_data_in ),
     .d_mem_data_out ( d_data_out ),
@@ -73,30 +83,40 @@ core dut(
 );
 
 initial begin
-    $dumpfile("testbench_core.vcd");
+    $dumpfile("testbench_indexed.vcd");
     $dumpvars(0, dut);
-    for ( count = 0; count < 65536; count++ ) begin
+    for ( count = 0; count < 65532; count++ ) begin
         d_bank[count] = count[15:8];
     end
+    d_bank[ 16'b1111_1111_1111_1000 ] = 8'b0;
+    d_bank[ 16'b1111_1111_1111_1001 ] = 8'b0;
+    d_bank[ 16'b1111_1111_1111_1010 ] = 8'b0;
+    d_bank[ 16'b1111_1111_1111_1011 ] = 8'b0;
+    d_bank[ 16'b1111_1111_1111_1100 ] = 8'b0;
+    d_bank[ 16'b1111_1111_1111_1101 ] = 8'b0;
+    d_bank[ 16'b1111_1111_1111_1110 ] = 8'b0;
+    d_bank[ 16'b1111_1111_1111_1111 ] = 8'b0;
     
     clock_count = 0;
     
-    i_bank[0] = 16'b00010_111_1001_0000;    // LDZ      #0 ?
+    i_bank[0] = 16'b00010_111_1001_0000;    // LDZ      #0
     i_bank[1] = 16'h0000;
     i_bank[2] = 16'b00010_100_0001_0000;    // LDS      #0
     i_bank[3] = 16'h0000;
-    i_bank[4] = 16'b00010_110_0001_0000;    // LDY      #$64
-    i_bank[5] = 16'h0064;
-    i_bank[6] = 16'b00001_110_1001_0000;   // SUB:Y    #1 ?
-    i_bank[7] = 16'h0001;
-    i_bank[8] = 16'b00010_000_0110_1000;   // LDA      byte $C000, Y
-    i_bank[9] = 16'hC000;
-    i_bank[10] = 16'b10000_000_0110_1000;   // STA      byte $B000, Y
-    i_bank[11] = 16'hB000;
-    i_bank[12] = 16'hF320;                  // BNE      -16
-    i_bank[13] = 16'hFFF0;
-    i_bank[14] = 16'b10000_000_0010_0000;   // STZ      $FFFE
-    i_bank[15] = 16'hFFFE;
+    i_bank[4] = 16'b10011_111_1001_0000;    // STF      Z ?
+    i_bank[5] = 16'h0000;
+    i_bank[6] = 16'b00010_110_0001_0000;    // LDY      #$64
+    i_bank[7] = 16'h0064;
+    i_bank[8] = 16'b00001_110_1001_0000;   // SUB:Y    #1 ?
+    i_bank[9] = 16'h0001;
+    i_bank[10] = 16'b00010_000_0110_1000;   // LDA      byte $C000, Y
+    i_bank[11] = 16'hC000;
+    i_bank[12] = 16'b10000_000_0110_1000;   // STA      byte $B000, Y
+    i_bank[13] = 16'hB000;
+    i_bank[14] = 16'hF320;                  // BNE      -16
+    i_bank[15] = 16'hFFF0;
+    i_bank[16] = 16'b10000_000_0010_0000;   // STZ      $FFFE
+    i_bank[17] = 16'hFFFE;
     
     for ( count = 16; count < 64; count++ ) begin
         i_bank[count] = 16'b0;
@@ -104,7 +124,7 @@ initial begin
     
     rst = 0;
     clk = 0;
-    #4 rst = 1;
+    #1 rst = 1;
     #3600
     $display("Not completed in time");
     $finish;

@@ -203,6 +203,9 @@ regfile rf(
     .flags ( sf )
 );
 
+assign ex_pc_w = rf_d_adr == 4'b1011;
+assign ex_pc = alu_result;
+
 wire [1:0] rmw_fn = { alu_fn[3] & alu_fn[1], alu_fn[0] };
 wire rmw_start = rmw_offload & ~ex_rq_hold;
 

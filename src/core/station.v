@@ -47,8 +47,8 @@ parameter ST_WAIT_2   = 3'b010;
 parameter ST_WAIT_3   = 3'b011;
 parameter ST_LOAD_0   = 3'b100;
 parameter ST_LOAD_1   = 3'b101;
-parameter ST_ALU      = 3'b110;
-parameter ST_STORE    = 3'b111;
+parameter ST_ALU      = 3'b110;     // ALU & Store Stage
+parameter ST_STORE    = 3'b111;     // Second Store Stage after ALU for post indexed
 
 reg[2:0] iop_status;
 
@@ -154,7 +154,7 @@ assign id_complete = is_status_complete;
 //These signals are repeatable
 assign r_pc = iop_pc;
 assign r_k16 = iop_k16;
-assign r_agu_k16 = ( is_status_store | iop[29] ) ? iop_k16 : 16'b0;
+assign r_agu_k16 = ( is_status_store | iop[29] ) ? 16'b0 : iop_k16;
 
 assign r_mask_index = is_status_load_1 & iop[ 30 ];
 

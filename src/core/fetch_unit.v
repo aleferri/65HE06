@@ -45,16 +45,12 @@ wire[13:0] pc_addition = (pc_inc | hold) ? inc_pc_amount : k16[15:2];
 reg[1:0] next_status;
 
 always @(*) begin
-    if ( ~hold ) begin
-        case(status)
-        2'b00: next_status = 2'b01;
-        2'b01: next_status = { pc_inv, pc_inc & ~pc_inv };
-        2'b10: next_status = { 1'b1, next_write };
-        2'b11: next_status = 2'b00;
-        endcase 
-    end else begin
-        next_status = status;
-    end
+    case(status)
+    2'b00: next_status = 2'b01;
+    2'b01: next_status = { pc_inv, pc_inc & ~pc_inv };
+    2'b10: next_status = { 1'b1, next_write };
+    2'b11: next_status = 2'b00;
+    endcase
 end
 
 wire next_status_high_0 = next_status[0];

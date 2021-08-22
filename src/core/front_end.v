@@ -95,6 +95,7 @@ fetch_unit fu(
     // decoder
     .pc_inc ( de_pc_inc ),
     .pc_inv ( de_pc_inv ),
+    .pc_branch ( br_taken ),
     .pc_out ( pc ),
     .ir_out ( fu_ir ),
     .k16_out ( fu_arg ),

@@ -107,6 +107,9 @@ reg[15:0] iop_pc;
 always @(posedge clk) begin
     iop <= id_feed ? id_iop : iop;
     iop_pc <= id_feed ? id_pc : iop_pc;
+    if (id_feed) begin
+        $display("Fed opcode (pc: %h): %b", id_pc, id_iop);
+    end
 end
 
 wire[1:0] load_k16 = { lsu_wb, id_feed };
@@ -149,21 +152,19 @@ wire write_back_alu = is_status_load_1 & iop[28] | is_status_store & iop[28];
 
 assign id_complete = is_status_complete;
 
-//These signals are expected to be gated outside the station
-
 //These signals are repeatable
 assign r_pc = iop_pc;
 assign r_k16 = iop_k16;
-assign r_agu_k16 = ( is_status_store | iop[29] ) ? 16'b0 : iop_k16;
+assign r_agu_k16 = ( is_status_store & write_back_alu | iop[29] ) ? 16'b0 : iop_k16;
 
 assign r_mask_index = is_status_load_1 & iop[ 30 ];
 
-assign r_a_adr = is_status_load_0 ? { 1'b1, iop[25:24] } : ( is_status_load_1 | is_status_store ) ? { 1'b1, iop[27:26] } : iop[15:13];
+assign r_a_adr = is_status_load_0 ? { 1'b1, iop[27:26] } : ( is_status_load_1 | is_status_store ) ? { 1'b1, iop[25:24] } : iop[15:13];
 assign r_b_adr = iop[12:10];
 
 //Quite complicated. D top bit (means "do the write") is 1 if doing pre-inc or post-dec during load or if ALU write to register. 
 //Lower part is either the address of the index or the register specified by the instruction.
-assign r_d_adr = { is_status_alu & iop[9] | write_back_alu, write_back_alu | iop[8], write_back_alu ? iop[27:26] : iop[7:6] };
+assign r_d_adr = { is_status_alu & iop[9] | write_back_alu, write_back_alu | iop[8], write_back_alu ? iop[25:24] : iop[7:6] };
 
 assign r_fn = ( is_status_load_0 | is_status_load_1 | is_status_store & ~iop[4]) ? 4'b0000 : iop[19:16];
 
@@ -184,7 +185,7 @@ assign r_lock_loads = iop[22];
 assign r_lock_reg_wr = iop[9:6];
 assign r_lock_reg_rd_0 = iop[15:13];
 assign r_lock_reg_rd_1 = iop[12:10];
-assign r_lock_reg_rd_2 = { 1'b1, iop[27:26] };
+assign r_lock_reg_rd_2 = { 1'b1, iop[25:24] };
 
 assign r_ready = iop_status[2];
 
@@ -194,7 +195,7 @@ reg[2:0] next_status;
 always @(*) begin
     case (iop_status)
         3'b000: next_status = id_iop_init;
-        3'b001: next_status = { lsu_wb, 2'b01 };
+        3'b001: next_status = { lsu_wb, lsu_wb & iop[22], 1'b1 };
         3'b010: next_status = { lsu_wb, 2'b10 };
         3'b011: next_status = 3'b111;
         3'b100: next_status = 3'b001;

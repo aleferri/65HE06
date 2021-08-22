@@ -37,6 +37,11 @@ wire accept_rq = ( ~busy | mem_rdy ) & rq_start;
 wire next_busy = busy & ~mem_rdy | rq_start;
 
 always @(posedge clk or negedge a_rst) begin
+    if (busy & ~mem_rdy) begin
+        $display("Memory Operation under way");
+    end else begin
+        $display("Memory Idling");
+    end
     if ( ~a_rst ) begin
         busy <= 1'b0;
     end else begin
@@ -45,6 +50,14 @@ always @(posedge clk or negedge a_rst) begin
 end
 
 always @(posedge clk) begin
+    if (accept_rq) begin
+        $display("Starting memory op at address: %h received from station %h; ", rq_addr, rq_tag);
+        if (rq_cmd) begin
+            $display("Writing %h\n", rq_data);
+        end else begin
+            $display("Reading\n");
+        end
+    end
     address <= accept_rq ? rq_addr : address;
     data <= accept_rq ? rq_data : data;
     width <= accept_rq ? rq_width : width;

@@ -108,24 +108,28 @@ initial begin
     i_bank[6] = 16'b00010_110_0001_0000;    // LDY      #$64
     i_bank[7] = 16'h0064;
     i_bank[8] = 16'b00001_110_1001_0000;   // SUB:Y    #1 ?
-    i_bank[9] = 16'h0001;
+    i_bank[9] = 16'h0000;
     i_bank[10] = 16'b00010_000_0110_1000;   // LDA      byte $C000, Y
     i_bank[11] = 16'hC000;
     i_bank[12] = 16'b10000_000_0110_1000;   // STA      byte $B000, Y
     i_bank[13] = 16'hB000;
     i_bank[14] = 16'hF320;                  // BNE      -16
     i_bank[15] = 16'hFFF0;
-    i_bank[16] = 16'b10000_000_0010_0000;   // STZ      $FFFE
+    i_bank[16] = 16'b10000_111_0010_1100;   // STZ      $FFFE
     i_bank[17] = 16'hFFFE;
+    i_bank[18] = 16'b10000_111_0010_1100;   // STZ      $FFFE
+    i_bank[19] = 16'hFFFE;
+    i_bank[20] = 16'b10000_111_0010_1100;   // STZ      $FFFE
+    i_bank[21] = 16'hFFFE;
     
-    for ( count = 16; count < 64; count++ ) begin
+    for ( count = 22; count < 64; count++ ) begin
         i_bank[count] = 16'b0;
     end
     
     rst = 0;
     clk = 0;
     #1 rst = 1;
-    #3600
+    #4600
     $display("Not completed in time");
     $finish;
 end
@@ -139,8 +143,8 @@ always begin
 end
 
 always @(negedge clk) begin
-    opc[31:16] = i_bank[ { pc[6:2], 1'b0 } ];
-    opc[15:0] = i_bank[ { pc[6:2], 1'b1 } ];
+    opc[31:16] = i_bank[ { pc[7:2], 1'b0 } ];
+    opc[15:0] = i_bank[ { pc[7:2], 1'b1 } ];
 end
 
 endmodule

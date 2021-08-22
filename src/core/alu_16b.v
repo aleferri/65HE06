@@ -32,7 +32,7 @@ wire has_v = ~alu_f[3] & ~alu_f[2];
 reg [15:0] result_val;
 reg [15:0] address_val;
 
-reg [11:0] flags_high;
+reg [10:0] flags_high;
 reg carry;
 reg overflow;
 reg zero;

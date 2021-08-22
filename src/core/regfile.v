@@ -56,6 +56,7 @@ always @(posedge clk) begin
     a <= is_a_pc ? r_pc : ( conflict_a ? alu_r : bank_a[r_a_addr] );
     b <= is_b_pc ? r_pc : ( conflict_b ? alu_r : bank_b[r_b_addr] );
     if ( alu_d_wr & ~conflict_sf ) begin
+        $display("Write Reg %h: %h\n", alu_d_adr, alu_r);
         bank_a[ alu_d_adr ] <= alu_r;
         bank_b[ alu_d_adr ] <= alu_r;
     end

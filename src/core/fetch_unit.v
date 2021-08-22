@@ -11,6 +11,7 @@ module fetch_unit(
     // decoder
     input   wire        pc_inc,
     input   wire        pc_inv,
+    input   wire        pc_branch,
     output  wire[15:0]  pc_out,
     output  wire[15:0]  ir_out,
     output  wire[15:0]  k16_out,
@@ -32,31 +33,29 @@ reg[13:0] npc;
 reg[15:0] k16;
 reg[15:0] ir;
 
-
 always @(posedge clk) begin
     npc <= pc_w ? pc_alu[15:2] : npc;
     next_write <= pc_w | next_write & status[1];
 end
-
-wire[13:0] inc_pc_amount = { 13'b0, ~hold };
-wire[13:0] pc_addition = (pc_inc | hold) ? inc_pc_amount : k16[15:2];
-
 
 reg[1:0] next_status;
 
 always @(*) begin
     case(status)
     2'b00: next_status = 2'b01;
-    2'b01: next_status = { pc_inv, pc_inc & ~pc_inv };
+    2'b01: next_status = { pc_inv, ~pc_inv & ~pc_branch };
     2'b10: next_status = { 1'b1, next_write };
     2'b11: next_status = 2'b00;
     endcase
 end
 
+wire[13:0] inc_pc_amount = { 13'b0, ~hold & ~(status[0] & status[1]) };
+wire[13:0] pc_addition = (pc_inc | hold) ? inc_pc_amount : k16[15:2];
+
 wire next_status_high_0 = next_status[0];
 wire next_status_high_1 = next_status[1];
 wire next_status_is_11 = next_status_high_1 & next_status_high_0;
-wire do_fetch = ( next_status_high_0 & ~next_status_high_1  ) & ~hold;
+wire do_fetch = ( next_status_high_0 & ~next_status_high_1 ) & ~hold;
 wire ready_mem = ~hold;
 
 always @(posedge clk or negedge a_rst) begin

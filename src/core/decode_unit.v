@@ -3,7 +3,7 @@ module decode_unit(
     input   wire        a_rst,
     
     // cpu status control
-    input   wire        hold,
+    input   wire        hold,  // hold instruction feeding
     input   wire        clr_idx,
     output  wire        sf_query,
     output  wire        op_rti,
@@ -100,7 +100,7 @@ wire is_pop = (ir[1:0] == 2'b11) & is_idx; // [@A + k16] -> T, @A + k16 -> @A; T
 wire is_flag_bit_set = ir[3];
 wire is_predicated_op = is_addcc_imm | is_addcc_reg;
 wire is_taken_pred = ( sf[cc_flags] == is_flag_bit_set );
-wire not_taken_pred = ~is_taken_pred & is_predicated_op;
+wire skip_op = is_predicated_op & ~is_taken_pred;
 
 always @(*) begin
     case(ir[15:11])
@@ -143,8 +143,8 @@ assign op_wai = is_wai;
 wire is_pc_dest = ( field_reg_0 == 3'b011 ) & ~is_sta;
 
 assign br_taken = ( is_predicated_op & is_taken_pred | is_bsr ) & ~hold;
-assign pc_inc = ~is_pc_dest | is_pc_dest & not_taken_pred & ~hold;
-assign pc_inv = is_pc_dest & ~( is_predicated_op & is_taken_pred & is_addcc_imm ) & ~hold;
+assign pc_inc = ~is_pc_dest | is_pc_dest & skip_op;
+assign pc_inv = is_pc_dest & ( ~is_predicated_op | is_predicated_op & ~is_addcc_imm ) & ~hold;
 
 assign sf_query = is_predicated_op;
 
@@ -214,10 +214,10 @@ assign id_iop = {
 
 assign id_iop_init = {
     1'b1,
-    is_reg | is_imm | is_sta,
+    is_reg | is_imm | (is_sta & is_idx),
     is_idx
 };
 
-assign id_feed = ~hold & ~not_taken_pred;
+assign id_feed = ~hold & ~skip_op;
 
 endmodule
